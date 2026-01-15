@@ -62,7 +62,7 @@
         "Create .gitignore for Python/Node artifacts",
         "Set up Docker Compose skeleton with placeholder services"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "none",
       "blocked_by": []
     },
@@ -79,7 +79,7 @@
         "Implement state management with SQLite instead of JSON files",
         "Add comprehensive logging with structured JSON output option"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "unit",
       "blocked_by": ["phase1-001"]
     },
@@ -96,7 +96,7 @@
         "Add branch push to origin functionality",
         "Create GitOperations class with all git operations encapsulated"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "unit",
       "blocked_by": ["phase1-002"]
     },
@@ -113,7 +113,7 @@
         "Implement output parsing and status detection",
         "Create ExecutorFactory for instantiating correct executor"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "unit",
       "blocked_by": ["phase1-002"]
     },
