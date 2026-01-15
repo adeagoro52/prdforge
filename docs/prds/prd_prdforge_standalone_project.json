@@ -790,7 +790,7 @@
         "Implement protected routes",
         "Add user indicator in dashboard header"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "manual",
       "blocked_by": [
         "phase5-006"

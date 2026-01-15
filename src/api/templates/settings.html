@@ -1,0 +1,350 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - PRDForge{% endblock %}
+
+{% block header %}User Settings{% endblock %}
+
+{% block content %}
+<div x-data="settingsPage()" x-init="init()" class="space-y-6">
+    <!-- Profile Section -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-4 py-3 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">Profile</h3>
+        </div>
+        <div class="p-4 space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Username</label>
+                    <input type="text" x-model="user.username" disabled
+                           class="w-full rounded-md border-gray-300 bg-gray-100 shadow-sm">
+                    <p class="text-xs text-gray-500 mt-1">Username cannot be changed</p>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+                    <input type="email" x-model="user.email"
+                           class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Display Name</label>
+                    <input type="text" x-model="user.display_name"
+                           class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                    <input type="text" :value="user.role" disabled
+                           class="w-full rounded-md border-gray-300 bg-gray-100 shadow-sm capitalize">
+                </div>
+            </div>
+            <div class="flex justify-end">
+                <button @click="updateProfile()" :disabled="saving"
+                        class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50">
+                    <span x-show="!saving">Save Profile</span>
+                    <span x-show="saving">Saving...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Password Section -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-4 py-3 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">Change Password</h3>
+        </div>
+        <div class="p-4 space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                    <input type="password" x-model="passwords.current"
+                           class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                    <input type="password" x-model="passwords.new"
+                           class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                    <input type="password" x-model="passwords.confirm"
+                           class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                </div>
+            </div>
+            <template x-if="passwordError">
+                <p class="text-sm text-red-600" x-text="passwordError"></p>
+            </template>
+            <div class="flex justify-end">
+                <button @click="changePassword()" :disabled="changingPassword"
+                        class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50">
+                    <span x-show="!changingPassword">Change Password</span>
+                    <span x-show="changingPassword">Changing...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preferences Section -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-4 py-3 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">Preferences</h3>
+        </div>
+        <div class="p-4 space-y-4">
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Default Executor</label>
+                    <select x-model="settings.default_executor"
+                            class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <option value="claude-cli">Claude CLI</option>
+                        <option value="openai">OpenAI API</option>
+                        <option value="gemini">Google Gemini</option>
+                    </select>
+                </div>
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Theme</label>
+                    <select x-model="settings.theme"
+                            class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                        <option value="system">System</option>
+                    </select>
+                </div>
+            </div>
+            <div class="space-y-2">
+                <label class="flex items-center">
+                    <input type="checkbox" x-model="settings.notifications_enabled"
+                           class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                    <span class="ml-2 text-sm text-gray-700">Enable desktop notifications</span>
+                </label>
+                <label class="flex items-center">
+                    <input type="checkbox" x-model="settings.email_notifications"
+                           class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                    <span class="ml-2 text-sm text-gray-700">Enable email notifications</span>
+                </label>
+                <label class="flex items-center">
+                    <input type="checkbox" x-model="settings.auto_refresh"
+                           class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                    <span class="ml-2 text-sm text-gray-700">Auto-refresh run status</span>
+                </label>
+            </div>
+            <div class="flex justify-end">
+                <button @click="updateSettings()" :disabled="savingSettings"
+                        class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50">
+                    <span x-show="!savingSettings">Save Preferences</span>
+                    <span x-show="savingSettings">Saving...</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Session Info -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-4 py-3 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">Session</h3>
+        </div>
+        <div class="p-4">
+            <div class="flex items-center justify-between">
+                <div>
+                    <p class="text-sm text-gray-600">
+                        Logged in since: <span class="font-medium" x-text="formatDate(user.last_login_at)"></span>
+                    </p>
+                    <p class="text-sm text-gray-600">
+                        Account created: <span class="font-medium" x-text="formatDate(user.created_at)"></span>
+                    </p>
+                </div>
+                <button @click="logout()"
+                        class="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700">
+                    Sign Out
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Success/Error Messages -->
+    <template x-if="message">
+        <div class="fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg"
+             :class="messageType === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'">
+            <p x-text="message"></p>
+        </div>
+    </template>
+</div>
+
+<script>
+function settingsPage() {
+    return {
+        user: {},
+        settings: {
+            default_executor: 'claude-cli',
+            theme: 'light',
+            notifications_enabled: true,
+            email_notifications: false,
+            auto_refresh: true,
+        },
+        passwords: {
+            current: '',
+            new: '',
+            confirm: '',
+        },
+        saving: false,
+        savingSettings: false,
+        changingPassword: false,
+        passwordError: null,
+        message: null,
+        messageType: 'success',
+
+        async init() {
+            await this.loadUser();
+            await this.loadSettings();
+        },
+
+        getToken() {
+            return localStorage.getItem('prdforge_token') || sessionStorage.getItem('prdforge_token');
+        },
+
+        async loadUser() {
+            const token = this.getToken();
+            if (!token) {
+                window.location.href = '/login';
+                return;
+            }
+
+            try {
+                const response = await fetch(`/api/auth/me?token=${token}`);
+                if (response.status === 401) {
+                    this.logout();
+                    return;
+                }
+                this.user = await response.json();
+            } catch (e) {
+                console.error('Failed to load user:', e);
+            }
+        },
+
+        async loadSettings() {
+            const token = this.getToken();
+            if (!token || !this.user.id) return;
+
+            try {
+                const response = await fetch(`/api/users/${this.user.id}/settings?token=${token}`);
+                const data = await response.json();
+                this.settings = {...this.settings, ...data.settings};
+            } catch (e) {
+                console.error('Failed to load settings:', e);
+            }
+        },
+
+        async updateProfile() {
+            this.saving = true;
+            const token = this.getToken();
+
+            try {
+                const response = await fetch(`/api/users/${this.user.id}?token=${token}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        email: this.user.email,
+                        display_name: this.user.display_name,
+                    }),
+                });
+
+                if (response.ok) {
+                    this.showMessage('Profile updated successfully', 'success');
+                } else {
+                    this.showMessage('Failed to update profile', 'error');
+                }
+            } catch (e) {
+                this.showMessage('Network error', 'error');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        async changePassword() {
+            this.passwordError = null;
+
+            if (this.passwords.new !== this.passwords.confirm) {
+                this.passwordError = 'New passwords do not match';
+                return;
+            }
+
+            if (this.passwords.new.length < 8) {
+                this.passwordError = 'Password must be at least 8 characters';
+                return;
+            }
+
+            this.changingPassword = true;
+            const token = this.getToken();
+
+            try {
+                const response = await fetch(`/api/users/${this.user.id}/password?token=${token}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({
+                        current_password: this.passwords.current,
+                        new_password: this.passwords.new,
+                    }),
+                });
+
+                if (response.ok) {
+                    this.showMessage('Password changed successfully', 'success');
+                    this.passwords = {current: '', new: '', confirm: ''};
+                } else {
+                    this.passwordError = 'Invalid current password';
+                }
+            } catch (e) {
+                this.passwordError = 'Network error';
+            } finally {
+                this.changingPassword = false;
+            }
+        },
+
+        async updateSettings() {
+            this.savingSettings = true;
+            const token = this.getToken();
+
+            try {
+                const response = await fetch(`/api/users/${this.user.id}/settings?token=${token}`, {
+                    method: 'PUT',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({settings: this.settings}),
+                });
+
+                if (response.ok) {
+                    this.showMessage('Preferences saved', 'success');
+                } else {
+                    this.showMessage('Failed to save preferences', 'error');
+                }
+            } catch (e) {
+                this.showMessage('Network error', 'error');
+            } finally {
+                this.savingSettings = false;
+            }
+        },
+
+        async logout() {
+            const token = this.getToken();
+            if (token) {
+                try {
+                    await fetch(`/api/auth/logout?token=${token}`, {method: 'POST'});
+                } catch (e) {}
+            }
+
+            localStorage.removeItem('prdforge_token');
+            sessionStorage.removeItem('prdforge_token');
+            localStorage.removeItem('prdforge_user');
+            window.location.href = '/login';
+        },
+
+        showMessage(text, type) {
+            this.message = text;
+            this.messageType = type;
+            setTimeout(() => {
+                this.message = null;
+            }, 3000);
+        },
+
+        formatDate(dateStr) {
+            if (!dateStr) return 'N/A';
+            return new Date(dateStr).toLocaleString();
+        },
+    }
+}
+</script>
+{% endblock %}

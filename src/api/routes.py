@@ -2070,3 +2070,34 @@ def list_audit_logs(
         )
         for log in logs
     ]
+
+
+# Authentication Pages
+@pages_router.get("/login", response_class=HTMLResponse)
+def login_page(request: Request):
+    """Login page."""
+    templates = get_templates()
+    return templates.TemplateResponse(
+        "login.html",
+        {"request": request},
+    )
+
+
+@pages_router.get("/register", response_class=HTMLResponse)
+def register_page(request: Request):
+    """User registration page."""
+    templates = get_templates()
+    return templates.TemplateResponse(
+        "register.html",
+        {"request": request},
+    )
+
+
+@pages_router.get("/settings", response_class=HTMLResponse)
+def settings_page(request: Request):
+    """User settings page."""
+    templates = get_templates()
+    return templates.TemplateResponse(
+        "settings.html",
+        {"request": request},
+    )

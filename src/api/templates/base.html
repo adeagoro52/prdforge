@@ -117,6 +117,50 @@
                                 </template>
                             </div>
                         </div>
+
+                        <!-- User Menu -->
+                        <div x-data="userMenu()" class="relative">
+                            <template x-if="user">
+                                <button @click="open = !open" class="flex items-center space-x-2 text-white hover:text-indigo-200">
+                                    <div class="w-8 h-8 rounded-full bg-indigo-800 flex items-center justify-center">
+                                        <span x-text="user.username.charAt(0).toUpperCase()" class="font-medium"></span>
+                                    </div>
+                                    <span x-text="user.display_name || user.username" class="text-sm hidden sm:inline"></span>
+                                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                    </svg>
+                                </button>
+                            </template>
+                            <template x-if="!user">
+                                <a href="/login" class="text-white hover:text-indigo-200 text-sm font-medium">
+                                    Sign In
+                                </a>
+                            </template>
+                            <div x-show="open && user" @click.away="open = false" x-transition
+                                class="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
+                                <div class="px-4 py-2 border-b">
+                                    <p class="text-sm font-medium text-gray-900" x-text="user?.display_name || user?.username"></p>
+                                    <p class="text-xs text-gray-500" x-text="user?.email"></p>
+                                    <span class="inline-flex items-center px-2 py-0.5 mt-1 rounded text-xs font-medium"
+                                          :class="user?.role === 'admin' ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-800'"
+                                          x-text="user?.role"></span>
+                                </div>
+                                <a href="/settings" class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100">
+                                    <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                    </svg>
+                                    Settings
+                                </a>
+                                <button @click="logout()" class="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-gray-100">
+                                    <svg class="w-4 h-4 inline mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                                    </svg>
+                                    Sign Out
+                                </button>
+                            </div>
+                        </div>
+
                         <span class="text-indigo-200 text-sm">v0.1.0</span>
                     </div>
                 </div>
@@ -225,6 +269,77 @@
                     if (window.htmx) {
                         htmx.trigger(document.body, 'project-changed');
                     }
+                }
+            };
+        }
+
+        function userMenu() {
+            return {
+                open: false,
+                user: null,
+
+                init() {
+                    this.loadUser();
+
+                    // Listen for auth changes from other tabs
+                    window.addEventListener('storage', (e) => {
+                        if (e.key === 'prdforge_token' || e.key === 'prdforge_user') {
+                            this.loadUser();
+                        }
+                    });
+                },
+
+                getToken() {
+                    return localStorage.getItem('prdforge_token') || sessionStorage.getItem('prdforge_token');
+                },
+
+                async loadUser() {
+                    const token = this.getToken();
+                    if (!token) {
+                        this.user = null;
+                        return;
+                    }
+
+                    // First try to load from localStorage for quick display
+                    const cachedUser = localStorage.getItem('prdforge_user');
+                    if (cachedUser) {
+                        try {
+                            this.user = JSON.parse(cachedUser);
+                        } catch (e) {}
+                    }
+
+                    // Then validate with server
+                    try {
+                        const response = await fetch(`/api/auth/me?token=${token}`);
+                        if (response.ok) {
+                            this.user = await response.json();
+                            localStorage.setItem('prdforge_user', JSON.stringify(this.user));
+                        } else if (response.status === 401) {
+                            // Token expired or invalid
+                            this.clearAuth();
+                        }
+                    } catch (e) {
+                        console.error('Failed to validate session:', e);
+                    }
+                },
+
+                async logout() {
+                    const token = this.getToken();
+                    if (token) {
+                        try {
+                            await fetch(`/api/auth/logout?token=${token}`, { method: 'POST' });
+                        } catch (e) {}
+                    }
+                    this.clearAuth();
+                    window.location.href = '/login';
+                },
+
+                clearAuth() {
+                    localStorage.removeItem('prdforge_token');
+                    sessionStorage.removeItem('prdforge_token');
+                    localStorage.removeItem('prdforge_user');
+                    this.user = null;
+                    this.open = false;
                 }
             };
         }
