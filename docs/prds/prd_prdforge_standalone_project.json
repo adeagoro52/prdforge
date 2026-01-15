@@ -847,7 +847,7 @@
         "Add deployment guide for production",
         "Create contributing guidelines"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "none",
       "blocked_by": [
         "phase5-009"
