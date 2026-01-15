@@ -49,7 +49,7 @@ class TestDatabase:
         db.initialize()
 
         version = db.get_schema_version()
-        assert version == 3  # Updated after adding cost tracking migration
+        assert version == 4  # Updated after adding team features migration
 
     def test_drop_all_tables(self, tmp_path):
         db_path = tmp_path / "test.db"

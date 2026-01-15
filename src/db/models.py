@@ -324,3 +324,153 @@ class CostAlert:
     acknowledged: bool = False
     acknowledged_at: datetime | None = None
     created_at: datetime | None = None
+
+
+class UserRole(Enum):
+    """User role for access control."""
+
+    ADMIN = "admin"
+    USER = "user"
+    VIEWER = "viewer"
+
+
+@dataclass
+class User:
+    """A user account.
+
+    Attributes:
+        id: Unique user identifier.
+        username: Unique username for login.
+        email: User email address.
+        password_hash: Hashed password.
+        role: User role for access control.
+        display_name: Human-readable display name.
+        is_active: Whether the account is active.
+        settings_json: JSON-encoded user settings/preferences.
+        created_at: When the account was created.
+        updated_at: When the account was last updated.
+        last_login_at: When the user last logged in.
+    """
+
+    id: int | None
+    username: str
+    email: str
+    password_hash: str
+    role: UserRole = UserRole.USER
+    display_name: str | None = None
+    is_active: bool = True
+    settings_json: str = "{}"
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    last_login_at: datetime | None = None
+
+    @property
+    def settings(self) -> dict[str, Any]:
+        """Get settings as a dict."""
+        import json
+        try:
+            return json.loads(self.settings_json)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    @settings.setter
+    def settings(self, value: dict[str, Any]) -> None:
+        """Set settings from a dict."""
+        import json
+        self.settings_json = json.dumps(value)
+
+
+@dataclass
+class Session:
+    """A user session for authentication.
+
+    Attributes:
+        id: Unique session identifier.
+        user_id: Foreign key to user.
+        token: Session token (secure random string).
+        expires_at: When the session expires.
+        created_at: When the session was created.
+        ip_address: Client IP address.
+        user_agent: Client user agent string.
+    """
+
+    id: int | None
+    user_id: int
+    token: str
+    expires_at: datetime
+    created_at: datetime | None = None
+    ip_address: str | None = None
+    user_agent: str | None = None
+
+
+class AuditAction(Enum):
+    """Type of audited action."""
+
+    # User actions
+    USER_LOGIN = "user_login"
+    USER_LOGOUT = "user_logout"
+    USER_CREATE = "user_create"
+    USER_UPDATE = "user_update"
+    USER_DELETE = "user_delete"
+
+    # Project actions
+    PROJECT_CREATE = "project_create"
+    PROJECT_UPDATE = "project_update"
+    PROJECT_DELETE = "project_delete"
+    PROJECT_ARCHIVE = "project_archive"
+
+    # Run actions
+    RUN_START = "run_start"
+    RUN_PAUSE = "run_pause"
+    RUN_RESUME = "run_resume"
+    RUN_CANCEL = "run_cancel"
+    RUN_COMPLETE = "run_complete"
+
+    # Settings actions
+    SETTINGS_UPDATE = "settings_update"
+    BUDGET_UPDATE = "budget_update"
+
+    # Generic
+    OTHER = "other"
+
+
+@dataclass
+class AuditLog:
+    """Audit log entry for tracking user actions.
+
+    Attributes:
+        id: Unique log identifier.
+        user_id: Foreign key to user (None for system actions).
+        action: Type of action performed.
+        resource_type: Type of resource affected.
+        resource_id: ID of resource affected.
+        details_json: JSON-encoded action details.
+        ip_address: Client IP address.
+        user_agent: Client user agent string.
+        created_at: When the action occurred.
+    """
+
+    id: int | None
+    action: AuditAction
+    resource_type: str | None = None
+    resource_id: str | None = None
+    user_id: int | None = None
+    details_json: str = "{}"
+    ip_address: str | None = None
+    user_agent: str | None = None
+    created_at: datetime | None = None
+
+    @property
+    def details(self) -> dict[str, Any]:
+        """Get details as a dict."""
+        import json
+        try:
+            return json.loads(self.details_json)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    @details.setter
+    def details(self, value: dict[str, Any]) -> None:
+        """Set details from a dict."""
+        import json
+        self.details_json = json.dumps(value)

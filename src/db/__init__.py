@@ -21,6 +21,8 @@ from .database import Database
 from .migrations import MigrationManager
 from .models import (
     AlertType,
+    AuditAction,
+    AuditLog,
     CostAlert,
     CostBudget,
     CostRecord,
@@ -28,8 +30,11 @@ from .models import (
     Project,
     ProjectHealth,
     Run,
+    Session,
     Task,
     TaskExecution,
+    User,
+    UserRole,
 )
 from .repositories import (
     LogRepository,
@@ -38,6 +43,11 @@ from .repositories import (
     TaskRepository,
 )
 from .cost_repository import CostRepository
+from .user_repository import (
+    AuditLogRepository,
+    SessionRepository,
+    UserRepository,
+)
 
 __all__ = [
     # Core
@@ -54,10 +64,18 @@ __all__ = [
     "CostBudget",
     "CostAlert",
     "AlertType",
+    "User",
+    "UserRole",
+    "Session",
+    "AuditLog",
+    "AuditAction",
     # Repositories
     "ProjectRepository",
     "RunRepository",
     "TaskRepository",
     "LogRepository",
     "CostRepository",
+    "UserRepository",
+    "SessionRepository",
+    "AuditLogRepository",
 ]

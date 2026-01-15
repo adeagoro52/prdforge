@@ -771,7 +771,7 @@
         "Implement basic role concept (admin/user)",
         "Add user settings and preferences"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "unit",
       "blocked_by": [
         "phase5-001"

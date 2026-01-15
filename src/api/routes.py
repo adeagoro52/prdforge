@@ -1598,3 +1598,475 @@ def run_custom_gate(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to run gate: {e}")
+
+
+# Authentication API Endpoints
+from src.engine.auth_service import AuthService, CurrentUser, get_auth_service
+from src.db.models import UserRole
+from src.db.user_repository import AuditLogRepository
+
+
+class LoginRequest(BaseModel):
+    """Request model for login."""
+
+    username: str
+    password: str
+
+
+class LoginResponse(BaseModel):
+    """Response model for login."""
+
+    success: bool
+    token: Optional[str] = None
+    user: Optional[dict] = None
+    error: Optional[str] = None
+
+
+class RegisterRequest(BaseModel):
+    """Request model for user registration."""
+
+    username: str = Field(..., min_length=3, max_length=50)
+    email: str = Field(...)
+    password: str = Field(..., min_length=8)
+    display_name: Optional[str] = None
+
+
+class UserResponse(BaseModel):
+    """Response model for a user."""
+
+    id: int
+    username: str
+    email: str
+    role: str
+    display_name: Optional[str]
+    is_active: bool
+    created_at: Optional[datetime]
+    last_login_at: Optional[datetime]
+
+
+class UserUpdateRequest(BaseModel):
+    """Request model for updating a user."""
+
+    email: Optional[str] = None
+    display_name: Optional[str] = None
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+
+
+class PasswordChangeRequest(BaseModel):
+    """Request model for changing password."""
+
+    current_password: str
+    new_password: str = Field(..., min_length=8)
+
+
+class SettingsUpdateRequest(BaseModel):
+    """Request model for updating settings."""
+
+    settings: dict
+
+
+class AuditLogResponse(BaseModel):
+    """Response model for an audit log entry."""
+
+    id: int
+    user_id: Optional[int]
+    action: str
+    resource_type: Optional[str]
+    resource_id: Optional[str]
+    details: dict
+    ip_address: Optional[str]
+    created_at: Optional[datetime]
+
+
+def get_auth_service_instance(db: Database = Depends(get_db)) -> AuthService:
+    """Get auth service instance."""
+    return get_auth_service(db)
+
+
+def get_client_info(request: Request) -> tuple[str | None, str | None]:
+    """Extract client IP and user agent from request."""
+    ip = request.client.host if request.client else None
+    user_agent = request.headers.get("user-agent")
+    return ip, user_agent
+
+
+@api_router.post("/auth/login", response_model=LoginResponse)
+def login(
+    request: Request,
+    login_data: LoginRequest,
+    auth_service: AuthService = Depends(get_auth_service_instance),
+):
+    """Authenticate a user and get a session token."""
+    ip, user_agent = get_client_info(request)
+
+    result = auth_service.login(
+        username=login_data.username,
+        password=login_data.password,
+        ip_address=ip,
+        user_agent=user_agent,
+    )
+
+    if not result.success:
+        return LoginResponse(success=False, error=result.error)
+
+    return LoginResponse(
+        success=True,
+        token=result.session.token,
+        user={
+            "id": result.user.id,
+            "username": result.user.username,
+            "email": result.user.email,
+            "role": result.user.role.value,
+            "display_name": result.user.display_name,
+        },
+    )
+
+
+@api_router.post("/auth/logout", status_code=200)
+def logout(
+    request: Request,
+    token: str = Query(...),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+):
+    """Log out and invalidate the session."""
+    ip, user_agent = get_client_info(request)
+
+    if auth_service.logout(token, ip, user_agent):
+        return {"status": "logged_out"}
+    raise HTTPException(status_code=400, detail="Invalid session")
+
+
+@api_router.get("/auth/me", response_model=UserResponse)
+def get_current_user(
+    token: str = Query(...),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+):
+    """Get the current authenticated user."""
+    current = auth_service.validate_session(token)
+    if not current:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+
+    return UserResponse(
+        id=current.user.id,
+        username=current.user.username,
+        email=current.user.email,
+        role=current.user.role.value,
+        display_name=current.user.display_name,
+        is_active=current.user.is_active,
+        created_at=current.user.created_at,
+        last_login_at=current.user.last_login_at,
+    )
+
+
+@api_router.post("/auth/extend", status_code=200)
+def extend_session(
+    token: str = Query(...),
+    hours: int = Query(24, ge=1, le=168),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+):
+    """Extend the current session."""
+    if auth_service.extend_session(token, hours):
+        return {"status": "extended", "hours": hours}
+    raise HTTPException(status_code=400, detail="Invalid session")
+
+
+@api_router.post("/users", response_model=UserResponse, status_code=201)
+def create_user(
+    request: Request,
+    user_data: RegisterRequest,
+    token: Optional[str] = Query(None),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+):
+    """Create a new user account."""
+    ip, user_agent = get_client_info(request)
+
+    # Check if this is admin creating user or self-registration
+    admin_id = None
+    if token:
+        current = auth_service.validate_session(token)
+        if current and current.is_admin:
+            admin_id = current.user.id
+
+    user = auth_service.create_user(
+        username=user_data.username,
+        email=user_data.email,
+        password=user_data.password,
+        display_name=user_data.display_name,
+        created_by_user_id=admin_id,
+        ip_address=ip,
+        user_agent=user_agent,
+    )
+
+    if not user:
+        raise HTTPException(status_code=400, detail="Username or email already exists")
+
+    return UserResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        role=user.role.value,
+        display_name=user.display_name,
+        is_active=user.is_active,
+        created_at=user.created_at,
+        last_login_at=user.last_login_at,
+    )
+
+
+@api_router.get("/users", response_model=list[UserResponse])
+def list_users(
+    token: str = Query(...),
+    active_only: bool = Query(True),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+):
+    """List all users (admin only)."""
+    current = auth_service.validate_session(token)
+    if not current:
+        raise HTTPException(status_code=401, detail="Invalid session")
+    if not current.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    users = auth_service.user_repo.list_all(active_only)
+    return [
+        UserResponse(
+            id=u.id,
+            username=u.username,
+            email=u.email,
+            role=u.role.value,
+            display_name=u.display_name,
+            is_active=u.is_active,
+            created_at=u.created_at,
+            last_login_at=u.last_login_at,
+        )
+        for u in users
+    ]
+
+
+@api_router.get("/users/{user_id}", response_model=UserResponse)
+def get_user(
+    user_id: int,
+    token: str = Query(...),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+):
+    """Get a user by ID."""
+    current = auth_service.validate_session(token)
+    if not current:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    # Users can view themselves, admins can view anyone
+    if current.user.id != user_id and not current.is_admin:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    user = auth_service.user_repo.get_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    return UserResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        role=user.role.value,
+        display_name=user.display_name,
+        is_active=user.is_active,
+        created_at=user.created_at,
+        last_login_at=user.last_login_at,
+    )
+
+
+@api_router.put("/users/{user_id}", response_model=UserResponse)
+def update_user(
+    request: Request,
+    user_id: int,
+    user_data: UserUpdateRequest,
+    token: str = Query(...),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+):
+    """Update a user."""
+    ip, user_agent = get_client_info(request)
+    current = auth_service.validate_session(token)
+    if not current:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    # Users can update themselves (limited), admins can update anyone
+    if current.user.id != user_id and not current.is_admin:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    user = auth_service.user_repo.get_by_id(user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # Apply updates
+    if user_data.email is not None:
+        user.email = user_data.email
+    if user_data.display_name is not None:
+        user.display_name = user_data.display_name
+
+    # Only admins can change role and active status
+    if current.is_admin:
+        if user_data.role is not None:
+            user.role = UserRole(user_data.role)
+        if user_data.is_active is not None:
+            user.is_active = user_data.is_active
+
+    auth_service.update_user(user, current.user.id, ip, user_agent)
+
+    return UserResponse(
+        id=user.id,
+        username=user.username,
+        email=user.email,
+        role=user.role.value,
+        display_name=user.display_name,
+        is_active=user.is_active,
+        created_at=user.created_at,
+        last_login_at=user.last_login_at,
+    )
+
+
+@api_router.post("/users/{user_id}/password", status_code=200)
+def change_password(
+    request: Request,
+    user_id: int,
+    password_data: PasswordChangeRequest,
+    token: str = Query(...),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+):
+    """Change user password."""
+    ip, user_agent = get_client_info(request)
+    current = auth_service.validate_session(token)
+    if not current:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    # Users can only change their own password this way
+    if current.user.id != user_id:
+        raise HTTPException(status_code=403, detail="Can only change your own password")
+
+    if auth_service.change_password(
+        user_id,
+        password_data.current_password,
+        password_data.new_password,
+        ip,
+        user_agent,
+    ):
+        return {"status": "password_changed"}
+
+    raise HTTPException(status_code=400, detail="Invalid current password")
+
+
+@api_router.post("/users/{user_id}/reset-password", status_code=200)
+def reset_password(
+    request: Request,
+    user_id: int,
+    new_password: str = Query(..., min_length=8),
+    token: str = Query(...),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+):
+    """Admin reset of user password."""
+    ip, user_agent = get_client_info(request)
+    current = auth_service.validate_session(token)
+    if not current or not current.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    if auth_service.reset_password(user_id, new_password, current.user.id, ip, user_agent):
+        return {"status": "password_reset"}
+
+    raise HTTPException(status_code=404, detail="User not found")
+
+
+@api_router.get("/users/{user_id}/settings")
+def get_user_settings(
+    user_id: int,
+    token: str = Query(...),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+):
+    """Get user settings."""
+    current = auth_service.validate_session(token)
+    if not current:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    if current.user.id != user_id and not current.is_admin:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    return {"settings": auth_service.get_user_settings(user_id)}
+
+
+@api_router.put("/users/{user_id}/settings")
+def update_user_settings(
+    request: Request,
+    user_id: int,
+    settings_data: SettingsUpdateRequest,
+    token: str = Query(...),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+):
+    """Update user settings."""
+    ip, user_agent = get_client_info(request)
+    current = auth_service.validate_session(token)
+    if not current:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    if current.user.id != user_id and not current.is_admin:
+        raise HTTPException(status_code=403, detail="Access denied")
+
+    if auth_service.update_settings(user_id, settings_data.settings, ip, user_agent):
+        return {"status": "updated"}
+
+    raise HTTPException(status_code=404, detail="User not found")
+
+
+@api_router.delete("/users/{user_id}", status_code=200)
+def deactivate_user(
+    request: Request,
+    user_id: int,
+    token: str = Query(...),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+):
+    """Deactivate a user (admin only)."""
+    ip, user_agent = get_client_info(request)
+    current = auth_service.validate_session(token)
+    if not current or not current.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    if auth_service.deactivate_user(user_id, current.user.id, ip, user_agent):
+        return {"status": "deactivated"}
+
+    raise HTTPException(status_code=404, detail="User not found")
+
+
+@api_router.get("/audit-logs", response_model=list[AuditLogResponse])
+def list_audit_logs(
+    token: str = Query(...),
+    limit: int = Query(100, le=500),
+    user_id: Optional[int] = Query(None),
+    action: Optional[str] = Query(None),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+):
+    """List audit logs (admin only)."""
+    current = auth_service.validate_session(token)
+    if not current or not current.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    audit_repo = auth_service.audit_repo
+
+    if user_id:
+        logs = audit_repo.list_for_user(user_id, limit)
+    elif action:
+        from src.db.models import AuditAction as AuditActionEnum
+        try:
+            logs = audit_repo.list_by_action(AuditActionEnum(action), limit)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid action: {action}")
+    else:
+        logs = audit_repo.list_recent(limit)
+
+    return [
+        AuditLogResponse(
+            id=log.id,
+            user_id=log.user_id,
+            action=log.action.value,
+            resource_type=log.resource_type,
+            resource_id=log.resource_id,
+            details=log.details,
+            ip_address=log.ip_address,
+            created_at=log.created_at,
+        )
+        for log in logs
+    ]
