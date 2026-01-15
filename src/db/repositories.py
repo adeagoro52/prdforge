@@ -8,6 +8,7 @@ from .models import (
     LogEntry,
     LogLevel,
     Project,
+    ProjectHealth,
     Run,
     RunStatus,
     Task,
@@ -37,14 +38,15 @@ class ProjectRepository:
         with self.db.connection() as conn:
             cursor = conn.execute(
                 """
-                INSERT INTO projects (name, path, project_type, config_json, is_active)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO projects (name, path, project_type, config_json, tags_json, is_active)
+                VALUES (?, ?, ?, ?, ?, ?)
                 """,
                 (
                     project.name,
                     project.path,
                     project.project_type,
                     project.config_json,
+                    project.tags_json,
                     project.is_active,
                 ),
             )
@@ -84,23 +86,86 @@ class ProjectRepository:
             row = cursor.fetchone()
             return self._row_to_project(row) if row else None
 
-    def list_all(self, active_only: bool = True) -> list[Project]:
+    def list_all(
+        self,
+        active_only: bool = True,
+        include_archived: bool = False,
+    ) -> list[Project]:
         """List all projects.
 
         Args:
             active_only: If True, only return active projects.
+            include_archived: If True, include archived projects.
 
         Returns:
             List of projects.
         """
         with self.db.connection() as conn:
+            conditions = []
             if active_only:
-                cursor = conn.execute(
-                    "SELECT * FROM projects WHERE is_active = 1 ORDER BY name"
-                )
-            else:
-                cursor = conn.execute("SELECT * FROM projects ORDER BY name")
+                conditions.append("is_active = 1")
+            if not include_archived:
+                conditions.append("archived_at IS NULL")
+
+            where_clause = f"WHERE {' AND '.join(conditions)}" if conditions else ""
+            cursor = conn.execute(
+                f"SELECT * FROM projects {where_clause} ORDER BY name"
+            )
             return [self._row_to_project(row) for row in cursor.fetchall()]
+
+    def list_by_tag(self, tag: str, include_archived: bool = False) -> list[Project]:
+        """List projects with a specific tag.
+
+        Args:
+            tag: Tag to filter by.
+            include_archived: If True, include archived projects.
+
+        Returns:
+            List of projects with the specified tag.
+        """
+        with self.db.connection() as conn:
+            # Use JSON functions to search within tags_json array
+            archived_clause = "" if include_archived else "AND archived_at IS NULL"
+            cursor = conn.execute(
+                f"""
+                SELECT * FROM projects
+                WHERE tags_json LIKE ? AND is_active = 1 {archived_clause}
+                ORDER BY name
+                """,
+                (f'%"{tag}"%',),
+            )
+            return [self._row_to_project(row) for row in cursor.fetchall()]
+
+    def list_archived(self) -> list[Project]:
+        """List all archived projects.
+
+        Returns:
+            List of archived projects.
+        """
+        with self.db.connection() as conn:
+            cursor = conn.execute(
+                "SELECT * FROM projects WHERE archived_at IS NOT NULL ORDER BY archived_at DESC"
+            )
+            return [self._row_to_project(row) for row in cursor.fetchall()]
+
+    def get_all_tags(self) -> list[str]:
+        """Get all unique tags across all projects.
+
+        Returns:
+            List of unique tags sorted alphabetically.
+        """
+        with self.db.connection() as conn:
+            cursor = conn.execute(
+                "SELECT tags_json FROM projects WHERE is_active = 1 AND archived_at IS NULL"
+            )
+            all_tags = set()
+            for row in cursor.fetchall():
+                try:
+                    tags = json.loads(row["tags_json"])
+                    all_tags.update(tags)
+                except (json.JSONDecodeError, TypeError):
+                    pass
+            return sorted(all_tags)
 
     def update(self, project: Project) -> None:
         """Update a project.
@@ -113,7 +178,7 @@ class ProjectRepository:
                 """
                 UPDATE projects
                 SET name = ?, path = ?, project_type = ?, config_json = ?,
-                    is_active = ?, updated_at = ?
+                    tags_json = ?, is_active = ?, archived_at = ?, updated_at = ?
                 WHERE id = ?
                 """,
                 (
@@ -121,11 +186,85 @@ class ProjectRepository:
                     project.path,
                     project.project_type,
                     project.config_json,
+                    project.tags_json,
                     project.is_active,
+                    project.archived_at,
                     datetime.utcnow(),
                     project.id,
                 ),
             )
+
+    def archive(self, project_id: int) -> None:
+        """Archive a project.
+
+        Args:
+            project_id: ID of project to archive.
+        """
+        with self.db.connection() as conn:
+            conn.execute(
+                """
+                UPDATE projects
+                SET archived_at = ?, updated_at = ?
+                WHERE id = ?
+                """,
+                (datetime.utcnow(), datetime.utcnow(), project_id),
+            )
+
+    def unarchive(self, project_id: int) -> None:
+        """Unarchive (restore) a project.
+
+        Args:
+            project_id: ID of project to unarchive.
+        """
+        with self.db.connection() as conn:
+            conn.execute(
+                """
+                UPDATE projects
+                SET archived_at = NULL, updated_at = ?
+                WHERE id = ?
+                """,
+                (datetime.utcnow(), project_id),
+            )
+
+    def add_tags(self, project_id: int, tags: list[str]) -> None:
+        """Add tags to a project.
+
+        Args:
+            project_id: Project ID.
+            tags: List of tags to add.
+        """
+        project = self.get_by_id(project_id)
+        if project:
+            current_tags = set(project.tags)
+            current_tags.update(tags)
+            project.tags = sorted(current_tags)
+            self.update(project)
+
+    def remove_tags(self, project_id: int, tags: list[str]) -> None:
+        """Remove tags from a project.
+
+        Args:
+            project_id: Project ID.
+            tags: List of tags to remove.
+        """
+        project = self.get_by_id(project_id)
+        if project:
+            current_tags = set(project.tags)
+            current_tags -= set(tags)
+            project.tags = sorted(current_tags)
+            self.update(project)
+
+    def set_tags(self, project_id: int, tags: list[str]) -> None:
+        """Set tags for a project (replaces existing tags).
+
+        Args:
+            project_id: Project ID.
+            tags: List of tags to set.
+        """
+        project = self.get_by_id(project_id)
+        if project:
+            project.tags = sorted(set(tags))
+            self.update(project)
 
     def delete(self, project_id: int) -> None:
         """Delete a project.
@@ -136,16 +275,83 @@ class ProjectRepository:
         with self.db.connection() as conn:
             conn.execute("DELETE FROM projects WHERE id = ?", (project_id,))
 
+    def get_health(self, project_id: int) -> ProjectHealth:
+        """Get health status of a project based on recent runs.
+
+        Args:
+            project_id: Project ID.
+
+        Returns:
+            ProjectHealth status.
+        """
+        with self.db.connection() as conn:
+            # Get the most recent run for this project
+            cursor = conn.execute(
+                """
+                SELECT status, failed_tasks, completed_tasks, total_tasks
+                FROM runs
+                WHERE project_id = ?
+                ORDER BY started_at DESC
+                LIMIT 1
+                """,
+                (project_id,),
+            )
+            row = cursor.fetchone()
+
+            if not row:
+                return ProjectHealth.UNKNOWN
+
+            status = row["status"]
+            failed = row["failed_tasks"]
+            completed = row["completed_tasks"]
+            total = row["total_tasks"]
+
+            if status == "completed":
+                if failed > 0:
+                    return ProjectHealth.WARNING
+                return ProjectHealth.HEALTHY
+            elif status == "failed":
+                return ProjectHealth.FAILING
+            elif status in ("running", "paused"):
+                return ProjectHealth.HEALTHY
+            else:
+                return ProjectHealth.INACTIVE
+
+    def get_health_summary(self) -> dict[str, int]:
+        """Get health status summary across all active projects.
+
+        Returns:
+            Dictionary with counts per health status.
+        """
+        projects = self.list_all(active_only=True, include_archived=False)
+        summary = {
+            "healthy": 0,
+            "warning": 0,
+            "failing": 0,
+            "inactive": 0,
+            "unknown": 0,
+        }
+        for project in projects:
+            health = self.get_health(project.id)
+            summary[health.value] += 1
+        return summary
+
     def _row_to_project(self, row) -> Project:
         """Convert database row to Project."""
+        # Handle both old schema (without tags_json/archived_at) and new schema
+        tags_json = row["tags_json"] if "tags_json" in row.keys() else "[]"
+        archived_at = row["archived_at"] if "archived_at" in row.keys() else None
+
         return Project(
             id=row["id"],
             name=row["name"],
             path=row["path"],
             project_type=row["project_type"],
             config_json=row["config_json"],
+            tags_json=tags_json,
             created_at=row["created_at"],
             updated_at=row["updated_at"],
+            archived_at=archived_at,
             is_active=bool(row["is_active"]),
         )
 
@@ -170,8 +376,8 @@ class RunRepository:
                 """
                 INSERT INTO runs (
                     run_id, project_id, prd_path, status, base_branch, run_branch,
-                    executor, started_at, total_tasks, metadata_json
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    executor, started_at, total_tasks, completed_tasks, failed_tasks, metadata_json
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     run.run_id,
@@ -183,6 +389,8 @@ class RunRepository:
                     run.executor,
                     run.started_at,
                     run.total_tasks,
+                    run.completed_tasks,
+                    run.failed_tasks,
                     run.metadata_json,
                 ),
             )

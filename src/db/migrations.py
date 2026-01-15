@@ -120,6 +120,20 @@ MIGRATIONS = [
         CREATE INDEX IF NOT EXISTS idx_logs_timestamp ON logs(timestamp);
         """,
     ),
+    (
+        2,
+        "Add project tags and archiving",
+        """
+        -- Add tags_json column for project tagging/grouping
+        ALTER TABLE projects ADD COLUMN tags_json TEXT NOT NULL DEFAULT '[]';
+
+        -- Add archived_at column for soft archiving
+        ALTER TABLE projects ADD COLUMN archived_at TIMESTAMP DEFAULT NULL;
+
+        -- Index for archived projects
+        CREATE INDEX IF NOT EXISTS idx_projects_archived ON projects(archived_at);
+        """,
+    ),
 ]
 
 

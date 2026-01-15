@@ -19,7 +19,7 @@ Example usage:
 
 from .database import Database
 from .migrations import MigrationManager
-from .models import LogEntry, Project, Run, Task, TaskExecution
+from .models import LogEntry, Project, ProjectHealth, Run, Task, TaskExecution
 from .repositories import (
     LogRepository,
     ProjectRepository,
@@ -33,6 +33,7 @@ __all__ = [
     "MigrationManager",
     # Models
     "Project",
+    "ProjectHealth",
     "Run",
     "Task",
     "TaskExecution",

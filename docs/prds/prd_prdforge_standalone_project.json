@@ -369,7 +369,7 @@
         "Support concurrent runs across different projects",
         "Add project archiving functionality"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "unit",
       "blocked_by": ["phase2-010"]
     },
@@ -437,7 +437,7 @@
         "Add 'All Projects' overview mode",
         "Show currently active run indicator per project"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "manual",
       "blocked_by": ["phase3-001"]
     },
@@ -454,7 +454,7 @@
         "Add skill test/dry-run functionality",
         "Show skill execution history"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "manual",
       "blocked_by": ["phase3-003", "phase3-005"]
     },
@@ -471,7 +471,7 @@
         "Add remote sync (fetch/pull) before runs",
         "Support push to remote after successful runs"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "integration",
       "blocked_by": ["phase3-001"]
     },
@@ -488,7 +488,7 @@
         "Support review mode for existing PRDs",
         "Add PRD template system for common patterns"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "unit",
       "blocked_by": ["phase3-002"]
     },

@@ -1,10 +1,18 @@
 """Git operations manager for PRDForge."""
 
+import os
+import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
+from urllib.parse import urlparse
 
 from .logging import logger
+
+
+# Default workspace directory for cloned repos
+DEFAULT_WORKSPACE_DIR = Path.home() / ".prdforge" / "workspaces"
 
 
 @dataclass
@@ -325,3 +333,309 @@ class GitManager:
         else:
             logger.error(f"Push failed: {result.error}")
         return result
+
+    def pull(
+        self, remote: str = "origin", branch: Optional[str] = None, rebase: bool = False
+    ) -> GitResult:
+        """Pull from remote.
+
+        Args:
+            remote: Remote name.
+            branch: Branch to pull (default: current branch).
+            rebase: If True, use rebase instead of merge.
+
+        Returns:
+            GitResult indicating success or failure.
+        """
+        args = ["pull"]
+        if rebase:
+            args.append("--rebase")
+        args.append(remote)
+        if branch:
+            args.append(branch)
+
+        result = self._run_git(*args)
+        if result.success:
+            logger.info(f"Pulled from {remote}")
+        else:
+            logger.error(f"Pull failed: {result.error}")
+        return result
+
+    def get_remote_url(self, remote: str = "origin") -> Optional[str]:
+        """Get the URL of a remote.
+
+        Args:
+            remote: Remote name.
+
+        Returns:
+            Remote URL or None if not found.
+        """
+        result = self._run_git("remote", "get-url", remote)
+        return result.output if result.success else None
+
+    def set_remote_url(self, remote: str, url: str) -> GitResult:
+        """Set the URL of a remote.
+
+        Args:
+            remote: Remote name.
+            url: New URL for the remote.
+
+        Returns:
+            GitResult indicating success or failure.
+        """
+        result = self._run_git("remote", "set-url", remote, url)
+        if result.success:
+            logger.info(f"Set {remote} URL to {url}")
+        return result
+
+    def add_remote(self, name: str, url: str) -> GitResult:
+        """Add a new remote.
+
+        Args:
+            name: Remote name.
+            url: Remote URL.
+
+        Returns:
+            GitResult indicating success or failure.
+        """
+        result = self._run_git("remote", "add", name, url)
+        if result.success:
+            logger.info(f"Added remote {name}: {url}")
+        return result
+
+    def list_remotes(self) -> dict[str, str]:
+        """List all remotes and their URLs.
+
+        Returns:
+            Dict mapping remote names to URLs.
+        """
+        result = self._run_git("remote", "-v")
+        remotes = {}
+        if result.success and result.output:
+            for line in result.output.splitlines():
+                if "(fetch)" in line:
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        remotes[parts[0]] = parts[1]
+        return remotes
+
+    def sync_with_remote(
+        self, remote: str = "origin", branch: Optional[str] = None
+    ) -> GitResult:
+        """Sync current branch with remote (fetch + pull).
+
+        Args:
+            remote: Remote name.
+            branch: Branch to sync (default: current branch).
+
+        Returns:
+            GitResult indicating success or failure.
+        """
+        # First fetch to get latest refs
+        fetch_result = self.fetch(remote)
+        if not fetch_result.success:
+            return fetch_result
+
+        # Then pull
+        return self.pull(remote, branch)
+
+    @classmethod
+    def clone(
+        cls,
+        url: str,
+        target_path: Optional[Path] = None,
+        branch: Optional[str] = None,
+        depth: Optional[int] = None,
+        workspace_dir: Optional[Path] = None,
+    ) -> "GitManager":
+        """Clone a remote repository.
+
+        Args:
+            url: Repository URL (HTTPS or SSH).
+            target_path: Optional explicit path for clone. If None, uses workspace.
+            branch: Optional branch to clone.
+            depth: Optional shallow clone depth.
+            workspace_dir: Optional workspace directory for clones.
+
+        Returns:
+            GitManager instance for the cloned repo.
+
+        Raises:
+            RuntimeError: If clone fails.
+        """
+        # Determine target path
+        if target_path is None:
+            workspace = workspace_dir or DEFAULT_WORKSPACE_DIR
+            workspace.mkdir(parents=True, exist_ok=True)
+
+            # Extract repo name from URL
+            repo_name = cls._extract_repo_name(url)
+            target_path = workspace / repo_name
+
+        # Build clone command
+        cmd = ["git", "clone"]
+        if branch:
+            cmd.extend(["-b", branch])
+        if depth:
+            cmd.extend(["--depth", str(depth)])
+        cmd.extend([url, str(target_path)])
+
+        logger.info(f"Cloning {url} to {target_path}")
+
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
+
+            if result.returncode != 0:
+                error = result.stderr.strip() if result.stderr else "Clone failed"
+                raise RuntimeError(f"Failed to clone {url}: {error}")
+
+            logger.info(f"Cloned {url} to {target_path}")
+            return cls(target_path)
+
+        except Exception as e:
+            logger.error(f"Clone failed: {e}")
+            raise
+
+    @staticmethod
+    def _extract_repo_name(url: str) -> str:
+        """Extract repository name from URL.
+
+        Args:
+            url: Git URL (HTTPS or SSH).
+
+        Returns:
+            Repository name.
+        """
+        # Handle SSH URLs (git@github.com:user/repo.git)
+        if url.startswith("git@"):
+            match = re.search(r":(.+?)(?:\.git)?$", url)
+            if match:
+                return match.group(1).replace("/", "-")
+
+        # Handle HTTPS URLs
+        parsed = urlparse(url)
+        path = parsed.path.rstrip("/")
+        if path.endswith(".git"):
+            path = path[:-4]
+
+        # Use the last two path components (org/repo)
+        parts = path.strip("/").split("/")
+        if len(parts) >= 2:
+            return f"{parts[-2]}-{parts[-1]}"
+        return parts[-1] if parts else "repo"
+
+    @staticmethod
+    def is_git_url(path_or_url: str) -> bool:
+        """Check if a string is a git URL.
+
+        Args:
+            path_or_url: String to check.
+
+        Returns:
+            True if it's a git URL (SSH or HTTPS).
+        """
+        # SSH URL pattern
+        if path_or_url.startswith("git@"):
+            return True
+
+        # HTTPS URL pattern
+        if path_or_url.startswith(("https://", "http://")):
+            # Check for common git hosts or .git extension
+            if any(host in path_or_url for host in ["github.com", "gitlab.com", "bitbucket.org"]):
+                return True
+            if path_or_url.endswith(".git"):
+                return True
+
+        return False
+
+    def create_worktree(
+        self, path: Path, branch: str, create_branch: bool = False
+    ) -> GitResult:
+        """Create a git worktree.
+
+        Worktrees allow working with multiple branches simultaneously
+        without switching branches in the main repository.
+
+        Args:
+            path: Path for the new worktree.
+            branch: Branch to checkout in the worktree.
+            create_branch: If True, create a new branch.
+
+        Returns:
+            GitResult indicating success or failure.
+        """
+        args = ["worktree", "add"]
+        if create_branch:
+            args.extend(["-b", branch, str(path)])
+        else:
+            args.extend([str(path), branch])
+
+        result = self._run_git(*args)
+        if result.success:
+            logger.info(f"Created worktree at {path} for branch {branch}")
+        else:
+            logger.error(f"Failed to create worktree: {result.error}")
+        return result
+
+    def remove_worktree(self, path: Path, force: bool = False) -> GitResult:
+        """Remove a git worktree.
+
+        Args:
+            path: Path of the worktree to remove.
+            force: If True, force removal even with uncommitted changes.
+
+        Returns:
+            GitResult indicating success or failure.
+        """
+        args = ["worktree", "remove"]
+        if force:
+            args.append("--force")
+        args.append(str(path))
+
+        result = self._run_git(*args)
+        if result.success:
+            logger.info(f"Removed worktree at {path}")
+        else:
+            logger.error(f"Failed to remove worktree: {result.error}")
+        return result
+
+    def list_worktrees(self) -> list[dict[str, str]]:
+        """List all worktrees for this repository.
+
+        Returns:
+            List of dicts with 'path', 'head', and 'branch' keys.
+        """
+        result = self._run_git("worktree", "list", "--porcelain")
+        worktrees = []
+        current = {}
+
+        if result.success and result.output:
+            for line in result.output.splitlines():
+                if line.startswith("worktree "):
+                    if current:
+                        worktrees.append(current)
+                    current = {"path": line[9:]}
+                elif line.startswith("HEAD "):
+                    current["head"] = line[5:]
+                elif line.startswith("branch "):
+                    current["branch"] = line[7:].replace("refs/heads/", "")
+                elif line == "bare":
+                    current["bare"] = True
+
+            if current:
+                worktrees.append(current)
+
+        return worktrees
+
+    def prune_worktrees(self) -> GitResult:
+        """Prune stale worktree information.
+
+        Returns:
+            GitResult indicating success or failure.
+        """
+        return self._run_git("worktree", "prune")

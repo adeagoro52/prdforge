@@ -49,7 +49,7 @@ class TestDatabase:
         db.initialize()
 
         version = db.get_schema_version()
-        assert version == 1
+        assert version == 2  # Updated after adding tags/archiving migration
 
     def test_drop_all_tables(self, tmp_path):
         db_path = tmp_path / "test.db"

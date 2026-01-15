@@ -38,6 +38,13 @@
         .bg-status-completed { background-color: #10b981; }
         .bg-status-failed { background-color: #ef4444; }
         .bg-status-cancelled { background-color: #6b7280; }
+
+        /* Health indicator colors */
+        .health-healthy { background-color: #10b981; }
+        .health-warning { background-color: #f59e0b; }
+        .health-failing { background-color: #ef4444; }
+        .health-inactive { background-color: #9ca3af; }
+        .health-unknown { background-color: #6b7280; }
     </style>
 
     {% block extra_head %}{% endblock %}
@@ -51,19 +58,56 @@
                     <div class="flex items-center">
                         <div class="flex-shrink-0">
                             <a href="/" class="text-white font-bold text-xl">
-                                🔨 PRDForge
+                                PRDForge
                             </a>
                         </div>
                         <div class="ml-10 flex items-baseline space-x-4">
                             <a href="/" class="{% if request.url.path == '/' %}bg-indigo-700{% endif %} text-white rounded-md px-3 py-2 text-sm font-medium hover:bg-indigo-500">
                                 Dashboard
                             </a>
-                            <a href="/projects" class="{% if '/projects' in request.url.path %}bg-indigo-700{% endif %} text-white rounded-md px-3 py-2 text-sm font-medium hover:bg-indigo-500">
+                            <a href="/projects" class="{% if '/projects' in request.url.path and '/skills' not in request.url.path %}bg-indigo-700{% endif %} text-white rounded-md px-3 py-2 text-sm font-medium hover:bg-indigo-500">
                                 Projects
+                            </a>
+                            <a href="/skills" class="{% if '/skills' in request.url.path %}bg-indigo-700{% endif %} text-white rounded-md px-3 py-2 text-sm font-medium hover:bg-indigo-500">
+                                Skills
                             </a>
                         </div>
                     </div>
-                    <div class="flex items-center">
+                    <div class="flex items-center space-x-4">
+                        <!-- Project Switcher -->
+                        <div x-data="projectSwitcher()" @keydown.window.p.ctrl.prevent="open = true" class="relative">
+                            <button @click="open = !open" class="flex items-center space-x-2 bg-indigo-700 hover:bg-indigo-800 text-white rounded-md px-3 py-2 text-sm font-medium">
+                                <span x-show="selectedProject" class="flex items-center">
+                                    <span class="w-2 h-2 rounded-full mr-2" :class="'health-' + (selectedProject?.health || 'unknown')"></span>
+                                    <span x-text="selectedProject?.name || 'Select Project'"></span>
+                                </span>
+                                <span x-show="!selectedProject">All Projects</span>
+                                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+                            <div x-show="open" @click.away="open = false" x-transition
+                                class="absolute right-0 mt-2 w-64 bg-white rounded-md shadow-lg py-1 z-50">
+                                <!-- All Projects option -->
+                                <button @click="selectProject(null)" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                    <span class="w-2 h-2 rounded-full bg-gray-400 mr-2"></span>
+                                    All Projects
+                                    <span x-show="!selectedProject" class="ml-auto text-indigo-600">✓</span>
+                                </button>
+                                <hr class="my-1">
+                                <!-- Project list -->
+                                <template x-for="project in projects" :key="project.id">
+                                    <button @click="selectProject(project)" class="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center">
+                                        <span class="w-2 h-2 rounded-full mr-2" :class="'health-' + project.health"></span>
+                                        <span x-text="project.name" class="truncate"></span>
+                                        <span x-show="project.id === selectedProject?.id" class="ml-auto text-indigo-600">✓</span>
+                                    </button>
+                                </template>
+                                <template x-if="projects.length === 0">
+                                    <div class="px-4 py-2 text-sm text-gray-500">No projects yet</div>
+                                </template>
+                            </div>
+                        </div>
                         <span class="text-indigo-200 text-sm">v0.1.0</span>
                     </div>
                 </div>
@@ -104,6 +148,78 @@
             </div>
         </template>
     </div>
+
+    <!-- Project Switcher Script -->
+    <script>
+        function projectSwitcher() {
+            return {
+                open: false,
+                projects: [],
+                selectedProject: null,
+
+                init() {
+                    // Load projects from API
+                    this.loadProjects();
+
+                    // Restore last selected project from localStorage
+                    const savedProjectId = localStorage.getItem('prdforge_active_project');
+                    if (savedProjectId) {
+                        this.restoreProject(parseInt(savedProjectId));
+                    }
+
+                    // Listen for project changes from other tabs
+                    window.addEventListener('storage', (e) => {
+                        if (e.key === 'prdforge_active_project') {
+                            this.restoreProject(e.newValue ? parseInt(e.newValue) : null);
+                        }
+                    });
+                },
+
+                async loadProjects() {
+                    try {
+                        const response = await fetch('/api/projects');
+                        this.projects = await response.json();
+
+                        // Restore selected project after loading
+                        const savedProjectId = localStorage.getItem('prdforge_active_project');
+                        if (savedProjectId) {
+                            this.restoreProject(parseInt(savedProjectId));
+                        }
+                    } catch (error) {
+                        console.error('Failed to load projects:', error);
+                    }
+                },
+
+                restoreProject(projectId) {
+                    if (projectId && this.projects.length > 0) {
+                        this.selectedProject = this.projects.find(p => p.id === projectId) || null;
+                    } else {
+                        this.selectedProject = null;
+                    }
+                },
+
+                selectProject(project) {
+                    this.selectedProject = project;
+                    this.open = false;
+
+                    // Save to localStorage
+                    if (project) {
+                        localStorage.setItem('prdforge_active_project', project.id.toString());
+                    } else {
+                        localStorage.removeItem('prdforge_active_project');
+                    }
+
+                    // Dispatch event for other components to react
+                    window.dispatchEvent(new CustomEvent('project-changed', { detail: project }));
+
+                    // Reload page content based on selected project
+                    if (window.htmx) {
+                        htmx.trigger(document.body, 'project-changed');
+                    }
+                }
+            };
+        }
+    </script>
 
     {% block extra_scripts %}{% endblock %}
 </body>

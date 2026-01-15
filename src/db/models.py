@@ -40,6 +40,16 @@ class LogLevel(Enum):
     ERROR = "error"
 
 
+class ProjectHealth(Enum):
+    """Health status of a project based on recent runs."""
+
+    HEALTHY = "healthy"  # Last run succeeded
+    WARNING = "warning"  # Last run had failures but completed
+    FAILING = "failing"  # Last run failed
+    INACTIVE = "inactive"  # No recent runs
+    UNKNOWN = "unknown"  # Never run
+
+
 @dataclass
 class Project:
     """A registered project.
@@ -50,8 +60,10 @@ class Project:
         path: Local path or git URL.
         project_type: Type (local or git).
         config_json: JSON-encoded project configuration.
+        tags_json: JSON-encoded list of tags for grouping.
         created_at: When the project was registered.
         updated_at: When the project was last updated.
+        archived_at: When the project was archived (None if active).
         is_active: Whether the project is active.
     """
 
@@ -60,9 +72,31 @@ class Project:
     path: str
     project_type: str = "local"
     config_json: str = "{}"
+    tags_json: str = "[]"
     created_at: datetime | None = None
     updated_at: datetime | None = None
+    archived_at: datetime | None = None
     is_active: bool = True
+
+    @property
+    def tags(self) -> list[str]:
+        """Get tags as a list."""
+        import json
+        try:
+            return json.loads(self.tags_json)
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    @tags.setter
+    def tags(self, value: list[str]) -> None:
+        """Set tags from a list (sorted and deduplicated)."""
+        import json
+        self.tags_json = json.dumps(sorted(set(value)))
+
+    @property
+    def is_archived(self) -> bool:
+        """Check if project is archived."""
+        return self.archived_at is not None
 
 
 @dataclass

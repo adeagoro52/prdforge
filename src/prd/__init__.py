@@ -22,6 +22,15 @@ Example usage:
 from .base import BasePRDParser, PRDParseError
 from .converter import PRDConverter
 from .detector import PRDFormatDetector
+from .generator import (
+    InterviewPhase,
+    InterviewSession,
+    Question,
+    QuestionType,
+    get_template,
+    list_templates,
+    review_prd,
+)
 from .json_parser import JSONPRDParser
 from .markdown_parser import MarkdownPRDParser
 from .models import PRD, PRDMeta, PRDTask, Phase, TaskCategory, TestCoverage
@@ -46,6 +55,14 @@ __all__ = [
     # Utilities
     "PRDConverter",
     "PRDFormatDetector",
+    # Generator
+    "InterviewPhase",
+    "InterviewSession",
+    "Question",
+    "QuestionType",
+    "get_template",
+    "list_templates",
+    "review_prd",
     # Convenience functions
     "parse_prd",
     "parse_prd_string",

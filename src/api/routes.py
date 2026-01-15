@@ -11,8 +11,10 @@ from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from src.db import Database, Project, ProjectRepository, Run, RunRepository, TaskRepository
+from src.db import Database, Project, ProjectHealth, ProjectRepository, Run, RunRepository, TaskRepository
 from src.db.models import RunStatus
+from src.skills import SkillRegistry
+from src.skills.base import SkillSource
 
 # Template configuration
 _API_DIR = Path(__file__).parent
@@ -77,8 +79,37 @@ class ProjectResponse(BaseModel):
     name: str
     path: str
     project_type: str
+    tags: list[str] = []
+    health: Optional[str] = None
+    is_archived: bool = False
     created_at: Optional[datetime] = None
     is_active: bool = True
+
+
+class ProjectTagsUpdate(BaseModel):
+    """Request model for updating project tags."""
+
+    tags: list[str]
+
+
+class HealthSummaryResponse(BaseModel):
+    """Response model for health summary."""
+
+    healthy: int = 0
+    warning: int = 0
+    failing: int = 0
+    inactive: int = 0
+    unknown: int = 0
+
+
+class SkillResponse(BaseModel):
+    """Response model for a skill."""
+
+    name: str
+    description: str
+    category: str
+    source: str
+    enabled: bool = True
 
 
 class RunCreate(BaseModel):
@@ -110,17 +141,62 @@ class RunResponse(BaseModel):
 @api_router.get("/projects", response_model=list[ProjectResponse])
 def list_projects(
     active_only: bool = Query(True),
+    include_archived: bool = Query(False),
+    tag: Optional[str] = Query(None, description="Filter by tag"),
     db: Database = Depends(get_db),
 ):
     """List all projects."""
     repo = ProjectRepository(db)
-    projects = repo.list_all(active_only=active_only)
+    if tag:
+        projects = repo.list_by_tag(tag, include_archived=include_archived)
+    else:
+        projects = repo.list_all(active_only=active_only, include_archived=include_archived)
+
     return [
         ProjectResponse(
             id=p.id,
             name=p.name,
             path=p.path,
             project_type=p.project_type,
+            tags=p.tags,
+            health=repo.get_health(p.id).value,
+            is_archived=p.is_archived,
+            created_at=p.created_at,
+            is_active=p.is_active,
+        )
+        for p in projects
+    ]
+
+
+@api_router.get("/projects/health-summary", response_model=HealthSummaryResponse)
+def get_health_summary(db: Database = Depends(get_db)):
+    """Get health status summary across all projects."""
+    repo = ProjectRepository(db)
+    summary = repo.get_health_summary()
+    return HealthSummaryResponse(**summary)
+
+
+@api_router.get("/projects/tags")
+def list_all_tags(db: Database = Depends(get_db)):
+    """Get all unique tags across projects."""
+    repo = ProjectRepository(db)
+    return {"tags": repo.get_all_tags()}
+
+
+@api_router.get("/projects/archived", response_model=list[ProjectResponse])
+def list_archived_projects(db: Database = Depends(get_db)):
+    """List all archived projects."""
+    repo = ProjectRepository(db)
+    projects = repo.list_archived()
+    return [
+        ProjectResponse(
+            id=p.id,
+            name=p.name,
+            path=p.path,
+            project_type=p.project_type,
+            tags=p.tags,
+            health=repo.get_health(p.id).value,
+            is_archived=p.is_archived,
             created_at=p.created_at,
             is_active=p.is_active,
         )
@@ -158,6 +234,9 @@ def create_project(
         name=created.name,
         path=created.path,
         project_type=created.project_type,
+        tags=created.tags,
+        health=repo.get_health(created.id).value,
+        is_archived=created.is_archived,
         created_at=created.created_at,
         is_active=created.is_active,
     )
@@ -179,9 +258,76 @@ def get_project(
         name=project.name,
         path=project.path,
         project_type=project.project_type,
+        tags=project.tags,
+        health=repo.get_health(project.id).value,
+        is_archived=project.is_archived,
         created_at=project.created_at,
         is_active=project.is_active,
     )
+
+
+@api_router.put("/projects/{project_id}/tags", response_model=ProjectResponse)
+def update_project_tags(
+    project_id: int,
+    tags_update: ProjectTagsUpdate,
+    db: Database = Depends(get_db),
+):
+    """Update tags for a project."""
+    repo = ProjectRepository(db)
+    project = repo.get_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    repo.set_tags(project_id, tags_update.tags)
+    updated = repo.get_by_id(project_id)
+
+    return ProjectResponse(
+        id=updated.id,
+        name=updated.name,
+        path=updated.path,
+        project_type=updated.project_type,
+        tags=updated.tags,
+        health=repo.get_health(updated.id).value,
+        is_archived=updated.is_archived,
+        created_at=updated.created_at,
+        is_active=updated.is_active,
+    )
+
+
+@api_router.post("/projects/{project_id}/archive", status_code=200)
+def archive_project(
+    project_id: int,
+    db: Database = Depends(get_db),
+):
+    """Archive a project."""
+    repo = ProjectRepository(db)
+    project = repo.get_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if project.is_archived:
+        raise HTTPException(status_code=400, detail="Project is already archived")
+
+    repo.archive(project_id)
+    return {"status": "archived"}
+
+
+@api_router.post("/projects/{project_id}/unarchive", status_code=200)
+def unarchive_project(
+    project_id: int,
+    db: Database = Depends(get_db),
+):
+    """Unarchive (restore) a project."""
+    repo = ProjectRepository(db)
+    project = repo.get_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if not project.is_archived:
+        raise HTTPException(status_code=400, detail="Project is not archived")
+
+    repo.unarchive(project_id)
+    return {"status": "unarchived"}
 
 
 @api_router.delete("/projects/{project_id}", status_code=204)
@@ -360,6 +506,49 @@ def cancel_run(
     return {"status": "cancelled"}
 
 
+# Skills Endpoints
+def get_skill_registry(project_path: Optional[str] = None) -> SkillRegistry:
+    """Get skill registry with discovered skills."""
+    registry = SkillRegistry()
+    registry.discover_builtin()
+    registry.discover_user_skills()
+    if project_path:
+        registry.discover_project_skills(Path(project_path))
+    return registry
+
+
+@api_router.get("/skills", response_model=list[SkillResponse])
+def list_skills(project_path: Optional[str] = Query(None)):
+    """List all available skills."""
+    registry = get_skill_registry(project_path)
+    skills = registry.list_all()
+    return [
+        SkillResponse(
+            name=s.name,
+            description=s.description,
+            category=s.category,
+            source=s.source.value,
+        )
+        for s in skills
+    ]
+
+
+@api_router.get("/skills/{skill_name}", response_model=SkillResponse)
+def get_skill(skill_name: str, project_path: Optional[str] = Query(None)):
+    """Get a skill by name."""
+    registry = get_skill_registry(project_path)
+    skill = registry.get(skill_name)
+    if not skill:
+        raise HTTPException(status_code=404, detail=f"Skill '{skill_name}' not found")
+
+    return SkillResponse(
+        name=skill.name,
+        description=skill.description,
+        category=skill.category,
+        source=skill.source.value,
+    )
+
+
 # HTML Pages
 @pages_router.get("/", response_class=HTMLResponse)
 def dashboard(request: Request, db: Database = Depends(get_db)):
@@ -453,5 +642,32 @@ def run_detail_page(
             "run": run,
             "tasks": tasks,
             "project": project,
+        },
+    )
+
+
+@pages_router.get("/skills", response_class=HTMLResponse)
+def skills_page(request: Request):
+    """Skills management page."""
+    templates = get_templates()
+
+    registry = get_skill_registry()
+    skills = registry.list_all()
+
+    # Group skills by source
+    skills_by_source = {
+        "package": [],
+        "user": [],
+        "project": [],
+    }
+    for skill in skills:
+        skills_by_source[skill.source.value].append(skill)
+
+    return templates.TemplateResponse(
+        "skills.html",
+        {
+            "request": request,
+            "skills": skills,
+            "skills_by_source": skills_by_source,
         },
     )

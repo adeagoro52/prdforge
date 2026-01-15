@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+
+{% block title %}Skills - PRDForge{% endblock %}
+
+{% block header %}Skills Management{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Skills Overview -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-medium text-gray-900">Available Skills</h2>
+            <span class="text-sm text-gray-500">{{ skills|length }} skills total</span>
+        </div>
+        <p class="text-sm text-gray-600 mb-4">
+            Skills are reusable automation tasks that can be executed as hooks after task completion.
+            Skills are discovered from three sources: built-in (package), user (~/.prdforge/skills/), and project (.prdforge/skills/).
+        </p>
+    </div>
+
+    <!-- Built-in Skills -->
+    <div class="bg-white shadow rounded-lg overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+            <h3 class="text-md font-medium text-gray-900 flex items-center">
+                <span class="w-3 h-3 rounded-full bg-blue-500 mr-2"></span>
+                Built-in Skills
+                <span class="ml-2 text-sm text-gray-500">({{ skills_by_source.package|length }})</span>
+            </h3>
+        </div>
+        <ul class="divide-y divide-gray-200">
+            {% for skill in skills_by_source.package %}
+            <li class="px-6 py-4 hover:bg-gray-50">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-900">{{ skill.name }}</h4>
+                        <p class="text-sm text-gray-500">{{ skill.description }}</p>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            {{ skill.category }}
+                        </span>
+                        <button
+                            class="text-indigo-600 hover:text-indigo-900 text-sm font-medium"
+                            onclick="alert('Dry run not yet implemented')">
+                            Test
+                        </button>
+                    </div>
+                </div>
+            </li>
+            {% else %}
+            <li class="px-6 py-4 text-gray-500 text-sm">No built-in skills found.</li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- User Skills -->
+    <div class="bg-white shadow rounded-lg overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+            <h3 class="text-md font-medium text-gray-900 flex items-center">
+                <span class="w-3 h-3 rounded-full bg-green-500 mr-2"></span>
+                User Skills
+                <span class="ml-2 text-sm text-gray-500">({{ skills_by_source.user|length }})</span>
+            </h3>
+            <p class="text-xs text-gray-500 mt-1">Located in ~/.prdforge/skills/</p>
+        </div>
+        <ul class="divide-y divide-gray-200">
+            {% for skill in skills_by_source.user %}
+            <li class="px-6 py-4 hover:bg-gray-50">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-900">{{ skill.name }}</h4>
+                        <p class="text-sm text-gray-500">{{ skill.description }}</p>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            {{ skill.category }}
+                        </span>
+                        <button
+                            class="text-indigo-600 hover:text-indigo-900 text-sm font-medium"
+                            onclick="alert('Dry run not yet implemented')">
+                            Test
+                        </button>
+                    </div>
+                </div>
+            </li>
+            {% else %}
+            <li class="px-6 py-8 text-center">
+                <p class="text-gray-500 text-sm">No user skills found.</p>
+                <p class="text-gray-400 text-xs mt-1">Create skills in ~/.prdforge/skills/ to add custom automation.</p>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- Project Skills -->
+    <div class="bg-white shadow rounded-lg overflow-hidden">
+        <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+            <h3 class="text-md font-medium text-gray-900 flex items-center">
+                <span class="w-3 h-3 rounded-full bg-yellow-500 mr-2"></span>
+                Project Skills
+                <span class="ml-2 text-sm text-gray-500">({{ skills_by_source.project|length }})</span>
+            </h3>
+            <p class="text-xs text-gray-500 mt-1">Located in .prdforge/skills/ within each project</p>
+        </div>
+        <ul class="divide-y divide-gray-200">
+            {% for skill in skills_by_source.project %}
+            <li class="px-6 py-4 hover:bg-gray-50">
+                <div class="flex items-center justify-between">
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-900">{{ skill.name }}</h4>
+                        <p class="text-sm text-gray-500">{{ skill.description }}</p>
+                    </div>
+                    <div class="flex items-center space-x-3">
+                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                            {{ skill.category }}
+                        </span>
+                        <button
+                            class="text-indigo-600 hover:text-indigo-900 text-sm font-medium"
+                            onclick="alert('Dry run not yet implemented')">
+                            Test
+                        </button>
+                    </div>
+                </div>
+            </li>
+            {% else %}
+            <li class="px-6 py-8 text-center">
+                <p class="text-gray-500 text-sm">No project skills found.</p>
+                <p class="text-gray-400 text-xs mt-1">Select a project to see project-specific skills.</p>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <!-- Skill Override Documentation -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h3 class="text-md font-medium text-gray-900 mb-3">Skill Override System</h3>
+        <div class="prose prose-sm text-gray-600">
+            <p>Skills can be overridden using a hierarchical system:</p>
+            <ol class="list-decimal list-inside mt-2 space-y-1">
+                <li><strong>Package (built-in)</strong> - Base skills provided by PRDForge</li>
+                <li><strong>User</strong> - Personal skills in ~/.prdforge/skills/ override package skills</li>
+                <li><strong>Project</strong> - Project skills in .prdforge/skills/ override both</li>
+            </ol>
+            <p class="mt-3">
+                To override a skill, create a skill with the same name in a higher-priority location.
+                For example, to customize the "lint" skill for a specific project, create
+                <code class="bg-gray-100 px-1 rounded">.prdforge/skills/lint.yaml</code> in your project.
+            </p>
+        </div>
+    </div>
+</div>
+{% endblock %}
