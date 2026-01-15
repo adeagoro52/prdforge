@@ -1252,6 +1252,19 @@ def costs_page(request: Request):
     )
 
 
+@pages_router.get("/quality-gates", response_class=HTMLResponse)
+def quality_gates_page(request: Request):
+    """Quality gates configuration page."""
+    templates = get_templates()
+
+    return templates.TemplateResponse(
+        "quality_gates.html",
+        {
+            "request": request,
+        },
+    )
+
+
 # Git Branch API Endpoints
 from src.engine.git_manager import GitManager
 

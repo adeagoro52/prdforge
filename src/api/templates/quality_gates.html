@@ -1,0 +1,579 @@
+{% extends "base.html" %}
+
+{% block title %}Quality Gates - PRDForge{% endblock %}
+
+{% block header %}Quality Gates{% endblock %}
+
+{% block content %}
+<div x-data="qualityGatesDashboard()" x-init="init()" class="space-y-6">
+    <!-- Project Selector -->
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="flex items-center justify-between">
+            <div class="flex items-center space-x-4">
+                <label class="text-sm font-medium text-gray-700">Project:</label>
+                <select x-model="selectedProjectId" @change="loadGates()"
+                        class="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <option value="">Select a project...</option>
+                    <template x-for="project in projects" :key="project.id">
+                        <option :value="project.id" x-text="project.name"></option>
+                    </template>
+                </select>
+            </div>
+            <div class="flex items-center space-x-2">
+                <button @click="showCustomGateModal = true"
+                        :disabled="!selectedProjectId"
+                        class="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-md disabled:opacity-50">
+                    + Add Custom Gate
+                </button>
+                <button @click="runAllGates()"
+                        :disabled="!selectedProjectId || loading"
+                        class="px-4 py-1.5 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50">
+                    <span x-show="!loading">Run All Gates</span>
+                    <span x-show="loading" class="flex items-center">
+                        <svg class="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                        Running...
+                    </span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Last Run Summary -->
+    <template x-if="lastRunSummary">
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-4 py-3 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">Last Run Results</h3>
+            </div>
+            <div class="p-4">
+                <div class="grid grid-cols-2 md:grid-cols-6 gap-4 mb-4">
+                    <div class="text-center">
+                        <p class="text-2xl font-bold text-gray-900" x-text="lastRunSummary.total">0</p>
+                        <p class="text-sm text-gray-500">Total</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold text-green-600" x-text="lastRunSummary.passed">0</p>
+                        <p class="text-sm text-gray-500">Passed</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold text-red-600" x-text="lastRunSummary.failed">0</p>
+                        <p class="text-sm text-gray-500">Failed</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold text-yellow-600" x-text="lastRunSummary.skipped">0</p>
+                        <p class="text-sm text-gray-500">Skipped</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold text-orange-600" x-text="lastRunSummary.errors">0</p>
+                        <p class="text-sm text-gray-500">Errors</p>
+                    </div>
+                    <div class="text-center">
+                        <p class="text-2xl font-bold text-gray-600" x-text="lastRunSummary.total_duration_seconds.toFixed(2) + 's'">0s</p>
+                        <p class="text-sm text-gray-500">Duration</p>
+                    </div>
+                </div>
+                <!-- Result status bar -->
+                <div class="h-2 bg-gray-200 rounded-full overflow-hidden flex">
+                    <div class="bg-green-500" :style="'width: ' + (lastRunSummary.passed / lastRunSummary.total * 100) + '%'"></div>
+                    <div class="bg-red-500" :style="'width: ' + (lastRunSummary.failed / lastRunSummary.total * 100) + '%'"></div>
+                    <div class="bg-yellow-500" :style="'width: ' + (lastRunSummary.skipped / lastRunSummary.total * 100) + '%'"></div>
+                    <div class="bg-orange-500" :style="'width: ' + (lastRunSummary.errors / lastRunSummary.total * 100) + '%'"></div>
+                </div>
+            </div>
+        </div>
+    </template>
+
+    <!-- Gates Section -->
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <!-- Available Gates -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-lg font-medium text-gray-900">Available Gates</h3>
+                <button @click="detectGates()" :disabled="!selectedProjectId || detectingGates"
+                        class="text-sm text-indigo-600 hover:text-indigo-800 disabled:opacity-50">
+                    <span x-show="!detectingGates">Auto-Detect</span>
+                    <span x-show="detectingGates">Detecting...</span>
+                </button>
+            </div>
+            <div class="p-4">
+                <!-- Built-in Gates -->
+                <div class="mb-4">
+                    <h4 class="text-sm font-medium text-gray-700 mb-2">Built-in Gates</h4>
+                    <div class="space-y-2">
+                        <template x-for="gate in builtinGates" :key="gate.name">
+                            <div class="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                                <div class="flex items-center">
+                                    <span class="w-2 h-2 rounded-full mr-3"
+                                          :class="getGateTypeColor(gate.gate_type)"></span>
+                                    <div>
+                                        <p class="font-medium text-gray-900" x-text="gate.name"></p>
+                                        <p class="text-xs text-gray-500">
+                                            <span x-text="gate.command"></span>
+                                            <span x-text="gate.args?.join(' ')"></span>
+                                        </p>
+                                    </div>
+                                </div>
+                                <div class="flex items-center space-x-2">
+                                    <span class="text-xs px-2 py-1 rounded-full"
+                                          :class="getGateTypeBadge(gate.gate_type)"
+                                          x-text="gate.gate_type"></span>
+                                    <button @click="runSingleGate(gate.name)"
+                                            :disabled="!selectedProjectId || loading"
+                                            class="px-2 py-1 text-xs bg-indigo-100 text-indigo-700 rounded hover:bg-indigo-200 disabled:opacity-50">
+                                        Run
+                                    </button>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </div>
+
+                <!-- Detected Gates -->
+                <template x-if="detectedGates.length > 0">
+                    <div class="mb-4">
+                        <h4 class="text-sm font-medium text-gray-700 mb-2">Detected for Project</h4>
+                        <div class="space-y-2">
+                            <template x-for="gate in detectedGates" :key="gate.name">
+                                <div class="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200">
+                                    <div class="flex items-center">
+                                        <svg class="w-4 h-4 text-green-500 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                        </svg>
+                                        <div>
+                                            <p class="font-medium text-gray-900" x-text="gate.name"></p>
+                                            <p class="text-xs text-gray-500">
+                                                <span x-text="gate.command"></span>
+                                                <span x-text="gate.args?.join(' ')"></span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <span class="text-xs px-2 py-1 rounded-full"
+                                          :class="getGateTypeBadge(gate.gate_type)"
+                                          x-text="gate.gate_type"></span>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+
+                <!-- Custom Gates -->
+                <template x-if="customGates.length > 0">
+                    <div>
+                        <h4 class="text-sm font-medium text-gray-700 mb-2">Custom Gates</h4>
+                        <div class="space-y-2">
+                            <template x-for="gate in customGates" :key="gate.name">
+                                <div class="flex items-center justify-between p-3 bg-purple-50 rounded-lg border border-purple-200">
+                                    <div class="flex items-center">
+                                        <div>
+                                            <p class="font-medium text-gray-900" x-text="gate.name"></p>
+                                            <p class="text-xs text-gray-500 font-mono" x-text="gate.command + ' ' + (gate.args?.join(' ') || '')"></p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <button @click="removeCustomGate(gate.name)" class="text-red-600 hover:text-red-800">
+                                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                            </svg>
+                                        </button>
+                                        <button @click="runCustomGate(gate)"
+                                                :disabled="!selectedProjectId || loading"
+                                                class="px-2 py-1 text-xs bg-purple-100 text-purple-700 rounded hover:bg-purple-200 disabled:opacity-50">
+                                            Run
+                                        </button>
+                                    </div>
+                                </div>
+                            </template>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Gate Results -->
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-4 py-3 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">Gate Results</h3>
+            </div>
+            <div class="p-4">
+                <template x-if="gateResults.length === 0">
+                    <div class="text-center py-8 text-gray-500">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                        </svg>
+                        <p class="mt-2">No gate results yet</p>
+                        <p class="text-sm">Run quality gates to see results</p>
+                    </div>
+                </template>
+                <div class="space-y-3">
+                    <template x-for="(result, index) in gateResults" :key="index">
+                        <div class="border rounded-lg overflow-hidden"
+                             :class="getResultBorderColor(result.result)">
+                            <div class="p-3 cursor-pointer"
+                                 :class="getResultBgColor(result.result)"
+                                 @click="result.expanded = !result.expanded">
+                                <div class="flex items-center justify-between">
+                                    <div class="flex items-center">
+                                        <span class="w-3 h-3 rounded-full mr-3"
+                                              :class="getResultDotColor(result.result)"></span>
+                                        <div>
+                                            <p class="font-medium text-gray-900" x-text="result.gate_name"></p>
+                                            <p class="text-xs text-gray-500">
+                                                <span x-text="result.gate_type"></span> -
+                                                <span x-text="result.duration_seconds.toFixed(2) + 's'"></span>
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div class="flex items-center space-x-2">
+                                        <span class="text-xs px-2 py-1 rounded-full font-medium"
+                                              :class="getResultBadge(result.result)"
+                                              x-text="result.result.toUpperCase()"></span>
+                                        <svg class="w-5 h-5 text-gray-400 transition-transform"
+                                             :class="result.expanded ? 'rotate-180' : ''"
+                                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                        </svg>
+                                    </div>
+                                </div>
+                            </div>
+                            <template x-if="result.expanded">
+                                <div class="p-3 border-t bg-white">
+                                    <template x-if="result.output">
+                                        <div class="mb-3">
+                                            <p class="text-xs font-medium text-gray-700 mb-1">Output:</p>
+                                            <pre class="text-xs bg-gray-100 p-2 rounded overflow-x-auto max-h-48" x-text="result.output"></pre>
+                                        </div>
+                                    </template>
+                                    <template x-if="result.error">
+                                        <div>
+                                            <p class="text-xs font-medium text-red-700 mb-1">Error:</p>
+                                            <pre class="text-xs bg-red-50 text-red-800 p-2 rounded overflow-x-auto max-h-48" x-text="result.error"></pre>
+                                        </div>
+                                    </template>
+                                    <template x-if="result.exit_code !== null">
+                                        <p class="text-xs text-gray-500 mt-2">Exit code: <span x-text="result.exit_code"></span></p>
+                                    </template>
+                                </div>
+                            </template>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Gate Modal -->
+    <template x-if="showCustomGateModal">
+        <div class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50" @click.self="showCustomGateModal = false">
+            <div class="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
+                <div class="px-4 py-3 border-b border-gray-200 flex justify-between items-center">
+                    <h3 class="text-lg font-medium text-gray-900">Add Custom Gate</h3>
+                    <button @click="showCustomGateModal = false" class="text-gray-400 hover:text-gray-600">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="p-4 space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Gate Name</label>
+                        <input type="text" x-model="newCustomGate.name"
+                               class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                               placeholder="my-custom-gate">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Gate Type</label>
+                        <select x-model="newCustomGate.gate_type"
+                                class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <option value="test">Test</option>
+                            <option value="lint">Lint</option>
+                            <option value="typecheck">Typecheck</option>
+                            <option value="custom">Custom</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Command</label>
+                        <input type="text" x-model="newCustomGate.command"
+                               class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 font-mono text-sm"
+                               placeholder="npm">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Arguments (space-separated)</label>
+                        <input type="text" x-model="newCustomGate.argsStr"
+                               class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 font-mono text-sm"
+                               placeholder="run test">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Timeout (seconds)</label>
+                        <input type="number" x-model.number="newCustomGate.timeout"
+                               class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                               min="1" max="3600">
+                    </div>
+                    <div class="flex items-center space-x-4">
+                        <label class="flex items-center">
+                            <input type="checkbox" x-model="newCustomGate.blocking"
+                                   class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <span class="ml-2 text-sm text-gray-700">Blocking</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="checkbox" x-model="newCustomGate.retry_on_fail"
+                                   class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                            <span class="ml-2 text-sm text-gray-700">Retry on Fail</span>
+                        </label>
+                    </div>
+                </div>
+                <div class="px-4 py-3 border-t border-gray-200 flex justify-end space-x-3">
+                    <button @click="showCustomGateModal = false"
+                            class="px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 rounded-md">
+                        Cancel
+                    </button>
+                    <button @click="addCustomGate()"
+                            :disabled="!newCustomGate.name || !newCustomGate.command"
+                            class="px-4 py-2 text-sm bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50">
+                        Add Gate
+                    </button>
+                </div>
+            </div>
+        </div>
+    </template>
+</div>
+
+<script>
+function qualityGatesDashboard() {
+    return {
+        projects: [],
+        selectedProjectId: '',
+        builtinGates: [],
+        detectedGates: [],
+        customGates: [],
+        gateResults: [],
+        lastRunSummary: null,
+        loading: false,
+        detectingGates: false,
+        showCustomGateModal: false,
+        newCustomGate: {
+            name: '',
+            gate_type: 'custom',
+            command: '',
+            argsStr: '',
+            timeout: 300,
+            blocking: true,
+            retry_on_fail: false
+        },
+
+        async init() {
+            await this.loadProjects();
+            await this.loadBuiltinGates();
+        },
+
+        async loadProjects() {
+            try {
+                const response = await fetch('/api/projects');
+                this.projects = await response.json();
+            } catch (e) {
+                console.error('Failed to load projects:', e);
+            }
+        },
+
+        async loadBuiltinGates() {
+            try {
+                const response = await fetch('/api/quality-gates/builtin');
+                const data = await response.json();
+                this.builtinGates = data.gates;
+            } catch (e) {
+                console.error('Failed to load builtin gates:', e);
+            }
+        },
+
+        async loadGates() {
+            if (!this.selectedProjectId) return;
+            this.gateResults = [];
+            this.lastRunSummary = null;
+            await this.detectGates();
+        },
+
+        async detectGates() {
+            if (!this.selectedProjectId) return;
+            this.detectingGates = true;
+            try {
+                const response = await fetch(`/api/projects/${this.selectedProjectId}/quality-gates/detect`);
+                const data = await response.json();
+                this.detectedGates = data.detected_gates;
+            } catch (e) {
+                console.error('Failed to detect gates:', e);
+            } finally {
+                this.detectingGates = false;
+            }
+        },
+
+        async runAllGates() {
+            if (!this.selectedProjectId) return;
+            this.loading = true;
+            this.gateResults = [];
+            try {
+                const gates = [...this.detectedGates, ...this.customGates];
+                const body = gates.length > 0 ? JSON.stringify(gates) : null;
+
+                const response = await fetch(`/api/projects/${this.selectedProjectId}/quality-gates/run?stop_on_failure=false`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: body
+                });
+                const data = await response.json();
+
+                this.lastRunSummary = data;
+                this.gateResults = data.results.map(r => ({...r, expanded: r.result !== 'passed'}));
+            } catch (e) {
+                console.error('Failed to run gates:', e);
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async runSingleGate(gateName) {
+            if (!this.selectedProjectId) return;
+            this.loading = true;
+            try {
+                const response = await fetch(`/api/projects/${this.selectedProjectId}/quality-gates/check/${gateName}`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+                result.expanded = result.result !== 'passed';
+
+                // Add or replace result
+                const existingIndex = this.gateResults.findIndex(r => r.gate_name === gateName);
+                if (existingIndex >= 0) {
+                    this.gateResults[existingIndex] = result;
+                } else {
+                    this.gateResults.unshift(result);
+                }
+            } catch (e) {
+                console.error('Failed to run gate:', e);
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async runCustomGate(gate) {
+            if (!this.selectedProjectId) return;
+            this.loading = true;
+            try {
+                const response = await fetch(`/api/projects/${this.selectedProjectId}/quality-gates/custom`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(gate)
+                });
+                const result = await response.json();
+                result.expanded = result.result !== 'passed';
+
+                // Add or replace result
+                const existingIndex = this.gateResults.findIndex(r => r.gate_name === gate.name);
+                if (existingIndex >= 0) {
+                    this.gateResults[existingIndex] = result;
+                } else {
+                    this.gateResults.unshift(result);
+                }
+            } catch (e) {
+                console.error('Failed to run custom gate:', e);
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        addCustomGate() {
+            const gate = {
+                name: this.newCustomGate.name,
+                gate_type: this.newCustomGate.gate_type,
+                command: this.newCustomGate.command,
+                args: this.newCustomGate.argsStr.split(' ').filter(a => a),
+                timeout: this.newCustomGate.timeout,
+                blocking: this.newCustomGate.blocking,
+                retry_on_fail: this.newCustomGate.retry_on_fail,
+                enabled: true
+            };
+
+            // Remove if exists, then add
+            this.customGates = this.customGates.filter(g => g.name !== gate.name);
+            this.customGates.push(gate);
+
+            // Reset form
+            this.newCustomGate = {
+                name: '',
+                gate_type: 'custom',
+                command: '',
+                argsStr: '',
+                timeout: 300,
+                blocking: true,
+                retry_on_fail: false
+            };
+            this.showCustomGateModal = false;
+        },
+
+        removeCustomGate(name) {
+            this.customGates = this.customGates.filter(g => g.name !== name);
+        },
+
+        getGateTypeColor(type) {
+            const colors = {
+                'test': 'bg-green-500',
+                'lint': 'bg-yellow-500',
+                'typecheck': 'bg-blue-500',
+                'custom': 'bg-purple-500'
+            };
+            return colors[type] || 'bg-gray-500';
+        },
+
+        getGateTypeBadge(type) {
+            const badges = {
+                'test': 'bg-green-100 text-green-800',
+                'lint': 'bg-yellow-100 text-yellow-800',
+                'typecheck': 'bg-blue-100 text-blue-800',
+                'custom': 'bg-purple-100 text-purple-800'
+            };
+            return badges[type] || 'bg-gray-100 text-gray-800';
+        },
+
+        getResultBorderColor(result) {
+            const colors = {
+                'passed': 'border-green-200',
+                'failed': 'border-red-200',
+                'skipped': 'border-yellow-200',
+                'error': 'border-orange-200'
+            };
+            return colors[result] || 'border-gray-200';
+        },
+
+        getResultBgColor(result) {
+            const colors = {
+                'passed': 'bg-green-50',
+                'failed': 'bg-red-50',
+                'skipped': 'bg-yellow-50',
+                'error': 'bg-orange-50'
+            };
+            return colors[result] || 'bg-gray-50';
+        },
+
+        getResultDotColor(result) {
+            const colors = {
+                'passed': 'bg-green-500',
+                'failed': 'bg-red-500',
+                'skipped': 'bg-yellow-500',
+                'error': 'bg-orange-500'
+            };
+            return colors[result] || 'bg-gray-500';
+        },
+
+        getResultBadge(result) {
+            const badges = {
+                'passed': 'bg-green-100 text-green-800',
+                'failed': 'bg-red-100 text-red-800',
+                'skipped': 'bg-yellow-100 text-yellow-800',
+                'error': 'bg-orange-100 text-orange-800'
+            };
+            return badges[result] || 'bg-gray-100 text-gray-800';
+        }
+    }
+}
+</script>
+{% endblock %}

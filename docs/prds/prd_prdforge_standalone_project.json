@@ -752,7 +752,7 @@
         "Add gate failure resolution workflow",
         "Support custom gate command editor"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "manual",
       "blocked_by": [
         "phase5-004"
