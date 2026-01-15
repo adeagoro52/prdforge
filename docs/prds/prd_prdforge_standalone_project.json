@@ -198,7 +198,7 @@
         "Set up CSS framework (Tailwind recommended)",
         "Create Docker service for frontend dev server"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "none",
       "blocked_by": ["phase1-008"]
     },
@@ -216,7 +216,7 @@
         "Implement GET /api/runs/{id} - get run details with tasks",
         "Add WebSocket endpoint for real-time run updates"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "integration",
       "blocked_by": ["phase1-007", "phase1-008"]
     },
@@ -233,7 +233,7 @@
         "Add delete project with confirmation",
         "Implement project search/filter"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "manual",
       "blocked_by": ["phase2-001", "phase2-002"]
     },
@@ -250,7 +250,7 @@
         "Show elapsed time and estimated remaining time",
         "Implement keyboard shortcuts (space=pause, escape=stop)"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "manual",
       "blocked_by": ["phase2-003"]
     },
@@ -267,7 +267,7 @@
         "Add expand/collapse for task details and steps",
         "Highlight currently executing task"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "manual",
       "blocked_by": ["phase2-003"]
     },
@@ -284,7 +284,7 @@
         "Support zoom in/out for long runs",
         "Show milestone markers for phase completions"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "manual",
       "blocked_by": ["phase2-005"]
     },
@@ -301,7 +301,7 @@
         "Add search within logs",
         "Support log download as text file"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "manual",
       "blocked_by": ["phase2-002"]
     },
@@ -318,7 +318,7 @@
         "Add run details drill-down",
         "Implement run re-run functionality"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "manual",
       "blocked_by": ["phase2-003"]
     },
@@ -335,7 +335,7 @@
         "Create .env.example with all configuration options",
         "Add health checks for all services"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "manual",
       "blocked_by": ["phase2-001", "phase2-002"]
     },
@@ -352,7 +352,7 @@
         "Create troubleshooting guide",
         "Add FAQ section"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "none",
       "blocked_by": ["phase2-009"]
     },

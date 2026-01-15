@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+
+{% block title %}Projects - PRDForge{% endblock %}
+
+{% block header %}Projects{% endblock %}
+
+{% block content %}
+<div x-data="{ showAddModal: false, newProject: { name: '', path: '', project_type: 'local' } }">
+    <!-- Header with Add button -->
+    <div class="sm:flex sm:items-center mb-6">
+        <div class="sm:flex-auto">
+            <p class="mt-2 text-sm text-gray-700">
+                Manage your registered projects. Each project can have multiple PRD files and execution runs.
+            </p>
+        </div>
+        <div class="mt-4 sm:ml-16 sm:mt-0 sm:flex-none">
+            <button
+                @click="showAddModal = true"
+                type="button"
+                class="block rounded-md bg-indigo-600 px-3 py-2 text-center text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+            >
+                Add Project
+            </button>
+        </div>
+    </div>
+
+    <!-- Projects List -->
+    {% if projects %}
+    <div class="bg-white shadow overflow-hidden sm:rounded-md">
+        <ul class="divide-y divide-gray-200">
+            {% for project in projects %}
+            <li>
+                <a href="/projects/{{ project.id }}" class="block hover:bg-gray-50">
+                    <div class="px-4 py-4 sm:px-6">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <div class="flex-shrink-0">
+                                    {% if project.project_type == 'git' %}
+                                    <svg class="h-8 w-8 text-gray-400" fill="currentColor" viewBox="0 0 24 24">
+                                        <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z" />
+                                    </svg>
+                                    {% else %}
+                                    <svg class="h-8 w-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+                                    </svg>
+                                    {% endif %}
+                                </div>
+                                <div class="ml-4">
+                                    <p class="text-sm font-medium text-indigo-600">{{ project.name }}</p>
+                                    <p class="text-sm text-gray-500 truncate max-w-lg">{{ project.path }}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center space-x-4">
+                                <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">
+                                    {{ project.project_type }}
+                                </span>
+                                <svg class="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd" />
+                                </svg>
+                            </div>
+                        </div>
+                    </div>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% else %}
+    <div class="text-center bg-white rounded-lg shadow px-4 py-12">
+        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z" />
+        </svg>
+        <h3 class="mt-2 text-sm font-semibold text-gray-900">No projects</h3>
+        <p class="mt-1 text-sm text-gray-500">Get started by creating a new project.</p>
+        <div class="mt-6">
+            <button
+                @click="showAddModal = true"
+                type="button"
+                class="inline-flex items-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500"
+            >
+                <svg class="-ml-0.5 mr-1.5 h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Add Project
+            </button>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- Add Project Modal -->
+    <div
+        x-show="showAddModal"
+        x-transition
+        class="relative z-10"
+        aria-labelledby="modal-title"
+        role="dialog"
+        aria-modal="true"
+    >
+        <div class="fixed inset-0 bg-gray-500 bg-opacity-75 transition-opacity"></div>
+
+        <div class="fixed inset-0 z-10 overflow-y-auto">
+            <div class="flex min-h-full items-end justify-center p-4 text-center sm:items-center sm:p-0">
+                <div class="relative transform overflow-hidden rounded-lg bg-white px-4 pb-4 pt-5 text-left shadow-xl transition-all sm:my-8 sm:w-full sm:max-w-lg sm:p-6">
+                    <div class="absolute right-0 top-0 hidden pr-4 pt-4 sm:block">
+                        <button @click="showAddModal = false" type="button" class="rounded-md bg-white text-gray-400 hover:text-gray-500">
+                            <span class="sr-only">Close</span>
+                            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    <div class="sm:flex sm:items-start">
+                        <div class="mt-3 text-center sm:ml-4 sm:mt-0 sm:text-left w-full">
+                            <h3 class="text-lg font-semibold leading-6 text-gray-900" id="modal-title">Add Project</h3>
+
+                            <form
+                                class="mt-6 space-y-4"
+                                hx-post="/api/projects"
+                                hx-swap="none"
+                                @htmx:after-request="if(event.detail.successful) { window.location.reload(); }"
+                            >
+                                <div>
+                                    <label for="name" class="block text-sm font-medium text-gray-700">Project Name</label>
+                                    <input
+                                        type="text"
+                                        name="name"
+                                        id="name"
+                                        x-model="newProject.name"
+                                        required
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2"
+                                        placeholder="my-project"
+                                    >
+                                </div>
+
+                                <div>
+                                    <label for="path" class="block text-sm font-medium text-gray-700">Path or Git URL</label>
+                                    <input
+                                        type="text"
+                                        name="path"
+                                        id="path"
+                                        x-model="newProject.path"
+                                        required
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2"
+                                        placeholder="/path/to/project or https://github.com/user/repo"
+                                    >
+                                </div>
+
+                                <div>
+                                    <label for="project_type" class="block text-sm font-medium text-gray-700">Type</label>
+                                    <select
+                                        name="project_type"
+                                        id="project_type"
+                                        x-model="newProject.project_type"
+                                        class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm border px-3 py-2"
+                                    >
+                                        <option value="local">Local Path</option>
+                                        <option value="git">Git Repository</option>
+                                    </select>
+                                </div>
+
+                                <div class="mt-5 sm:mt-4 sm:flex sm:flex-row-reverse">
+                                    <button
+                                        type="submit"
+                                        class="inline-flex w-full justify-center rounded-md bg-indigo-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-indigo-500 sm:ml-3 sm:w-auto"
+                                    >
+                                        Add Project
+                                    </button>
+                                    <button
+                                        @click="showAddModal = false"
+                                        type="button"
+                                        class="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

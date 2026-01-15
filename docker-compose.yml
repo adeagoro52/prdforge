@@ -1,26 +1,65 @@
 # PRDForge Docker Compose Configuration
-# This is a placeholder - will be implemented in Phase 2
-
-version: '3.8'
+# Development and production setup for PRD-driven AI code generation
 
 services:
-  # Backend API server
-  # api:
-  #   build: .
-  #   ports:
-  #     - "8000:8000"
-  #   volumes:
-  #     - ./data:/app/data
-  #   environment:
-  #     - DATABASE_URL=sqlite:///data/prdforge.db
+  # Backend API server with web dashboard
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: prdforge-api
+    ports:
+      - "${PRDFORGE_PORT:-8000}:8000"
+    volumes:
+      # Persistent database storage
+      - prdforge-data:/app/data
+      # Mount local projects (optional, for development)
+      - ${PRDFORGE_PROJECTS_DIR:-./projects}:/projects:ro
+    environment:
+      - PRDFORGE_DB_PATH=/app/data/prdforge.db
+      - PRDFORGE_LOG_LEVEL=${PRDFORGE_LOG_LEVEL:-INFO}
+      - PRDFORGE_DEBUG=${PRDFORGE_DEBUG:-false}
+      # AI executor configuration
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - prdforge-network
 
-  # Frontend dashboard
-  # frontend:
-  #   build: ./frontend
-  #   ports:
-  #     - "3000:3000"
-  #   depends_on:
-  #     - api
+  # Development mode with hot reload
+  api-dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: prdforge-api-dev
+    ports:
+      - "${PRDFORGE_DEV_PORT:-8001}:8000"
+    volumes:
+      # Mount source for hot reload
+      - ./src:/app/src:ro
+      - ./config:/app/config:ro
+      - prdforge-data:/app/data
+      - ${PRDFORGE_PROJECTS_DIR:-./projects}:/projects:ro
+    environment:
+      - PRDFORGE_DB_PATH=/app/data/prdforge.db
+      - PRDFORGE_LOG_LEVEL=DEBUG
+      - PRDFORGE_DEBUG=true
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+    profiles:
+      - dev
+    networks:
+      - prdforge-network
 
 volumes:
-  data:
+  prdforge-data:
+    name: prdforge-data
+
+networks:
+  prdforge-network:
+    name: prdforge-network

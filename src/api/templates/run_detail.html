@@ -1,0 +1,231 @@
+{% extends "base.html" %}
+
+{% block title %}Run {{ run.run_id[:8] }} - PRDForge{% endblock %}
+
+{% block header %}
+<div class="flex items-center justify-between">
+    <div class="flex items-center">
+        <a href="/projects/{{ project.id }}" class="text-gray-500 hover:text-gray-700 mr-3">
+            <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+            </svg>
+        </a>
+        Run {{ run.run_id[:8] }}...
+    </div>
+    <span class="inline-flex items-center rounded-full px-3 py-1 text-sm font-medium capitalize bg-status-{{ run.status.value }} bg-opacity-20 status-{{ run.status.value }}">
+        <span class="relative mr-2">
+            <span class="h-2 w-2 rounded-full bg-status-{{ run.status.value }} inline-block"></span>
+            {% if run.status.value == 'running' %}
+            <span class="absolute top-0 left-0 h-2 w-2 rounded-full bg-blue-400 animate-pulse-ring"></span>
+            {% endif %}
+        </span>
+        {{ run.status.value }}
+    </span>
+</div>
+{% endblock %}
+
+{% block content %}
+<div class="space-y-6" x-data="{ activeTab: 'tasks' }">
+    <!-- Run Control Panel -->
+    <div class="bg-white shadow sm:rounded-lg">
+        <div class="px-4 py-5 sm:p-6">
+            <div class="flex items-center justify-between">
+                <div>
+                    <h3 class="text-lg leading-6 font-medium text-gray-900">{{ run.prd_path }}</h3>
+                    <p class="mt-1 text-sm text-gray-500">
+                        Project: <a href="/projects/{{ project.id }}" class="text-indigo-600 hover:text-indigo-500">{{ project.name }}</a>
+                        | Branch: {{ run.base_branch }}
+                        | Executor: {{ run.executor }}
+                    </p>
+                </div>
+
+                <!-- Control Buttons -->
+                <div class="flex space-x-3">
+                    {% if run.status.value == 'running' %}
+                    <button
+                        hx-post="/api/runs/{{ run.run_id }}/pause"
+                        hx-swap="none"
+                        @htmx:after-request="window.location.reload()"
+                        class="inline-flex items-center rounded-md bg-yellow-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-yellow-500"
+                    >
+                        <svg class="-ml-0.5 mr-1.5 h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zM7 8a1 1 0 012 0v4a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v4a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" />
+                        </svg>
+                        Pause
+                    </button>
+                    {% elif run.status.value == 'paused' %}
+                    <button
+                        hx-post="/api/runs/{{ run.run_id }}/resume"
+                        hx-swap="none"
+                        @htmx:after-request="window.location.reload()"
+                        class="inline-flex items-center rounded-md bg-green-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-green-500"
+                    >
+                        <svg class="-ml-0.5 mr-1.5 h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
+                        </svg>
+                        Resume
+                    </button>
+                    {% endif %}
+
+                    {% if run.status.value in ['running', 'paused', 'pending'] %}
+                    <button
+                        hx-post="/api/runs/{{ run.run_id }}/cancel"
+                        hx-swap="none"
+                        hx-confirm="Are you sure you want to cancel this run?"
+                        @htmx:after-request="window.location.reload()"
+                        class="inline-flex items-center rounded-md bg-red-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-500"
+                    >
+                        <svg class="-ml-0.5 mr-1.5 h-5 w-5" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" />
+                        </svg>
+                        Cancel
+                    </button>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Progress Bar -->
+            <div class="mt-4">
+                <div class="flex justify-between text-sm text-gray-600 mb-1">
+                    <span>Progress</span>
+                    <span>{{ run.completed_tasks }}/{{ run.total_tasks }} tasks ({{ run.failed_tasks }} failed)</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                    {% set progress = (run.completed_tasks / run.total_tasks * 100) if run.total_tasks > 0 else 0 %}
+                    <div class="bg-indigo-600 h-2.5 rounded-full" style="width: {{ progress }}%"></div>
+                </div>
+            </div>
+
+            <!-- Timing Info -->
+            <div class="mt-4 grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <span class="text-gray-500">Started:</span>
+                    <span class="ml-2 text-gray-900">{{ run.started_at }}</span>
+                </div>
+                {% if run.completed_at %}
+                <div>
+                    <span class="text-gray-500">Completed:</span>
+                    <span class="ml-2 text-gray-900">{{ run.completed_at }}</span>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabs -->
+    <div class="bg-white shadow sm:rounded-lg overflow-hidden">
+        <div class="border-b border-gray-200">
+            <nav class="-mb-px flex" aria-label="Tabs">
+                <button
+                    @click="activeTab = 'tasks'"
+                    :class="activeTab === 'tasks' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'"
+                    class="w-1/3 border-b-2 py-4 px-1 text-center text-sm font-medium"
+                >
+                    Tasks
+                </button>
+                <button
+                    @click="activeTab = 'timeline'"
+                    :class="activeTab === 'timeline' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'"
+                    class="w-1/3 border-b-2 py-4 px-1 text-center text-sm font-medium"
+                >
+                    Timeline
+                </button>
+                <button
+                    @click="activeTab = 'logs'"
+                    :class="activeTab === 'logs' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:border-gray-300 hover:text-gray-700'"
+                    class="w-1/3 border-b-2 py-4 px-1 text-center text-sm font-medium"
+                >
+                    Logs
+                </button>
+            </nav>
+        </div>
+
+        <!-- Tasks Tab -->
+        <div x-show="activeTab === 'tasks'" class="p-4">
+            {% if tasks %}
+            <ul class="space-y-3">
+                {% for task in tasks %}
+                <li class="border rounded-lg p-4 hover:bg-gray-50" x-data="{ expanded: false }">
+                    <div class="flex items-center justify-between cursor-pointer" @click="expanded = !expanded">
+                        <div class="flex items-center">
+                            <span class="h-2.5 w-2.5 rounded-full bg-gray-400 mr-3"></span>
+                            <div>
+                                <p class="text-sm font-medium text-gray-900">{{ task.task_id }}</p>
+                                <p class="text-sm text-gray-500 truncate max-w-lg">{{ task.description }}</p>
+                            </div>
+                        </div>
+                        <div class="flex items-center space-x-3">
+                            <span class="inline-flex items-center rounded-full bg-gray-100 px-2.5 py-0.5 text-xs font-medium text-gray-800">
+                                {{ task.category }}
+                            </span>
+                            <span class="text-sm text-gray-500">Phase {{ task.phase }}</span>
+                            <svg
+                                :class="expanded ? 'rotate-180' : ''"
+                                class="h-5 w-5 text-gray-400 transition-transform"
+                                fill="currentColor"
+                                viewBox="0 0 20 20"
+                            >
+                                <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
+                            </svg>
+                        </div>
+                    </div>
+
+                    <!-- Expanded Details -->
+                    <div x-show="expanded" x-transition class="mt-4 pt-4 border-t">
+                        <div class="text-sm text-gray-600">
+                            <p class="font-medium mb-2">Steps:</p>
+                            <ul class="list-disc list-inside space-y-1 ml-2">
+                                {% for step in task.steps_json|default('[]', true)|fromjson %}
+                                <li>{{ step }}</li>
+                                {% endfor %}
+                            </ul>
+
+                            {% set blocked_by = task.blocked_by_json|default('[]', true)|fromjson %}
+                            {% if blocked_by %}
+                            <p class="font-medium mt-3 mb-1">Blocked by:</p>
+                            <div class="flex flex-wrap gap-2">
+                                {% for dep in blocked_by %}
+                                <span class="inline-flex items-center rounded bg-gray-100 px-2 py-0.5 text-xs text-gray-600">
+                                    {{ dep }}
+                                </span>
+                                {% endfor %}
+                            </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="text-center py-12">
+                <p class="text-sm text-gray-500">No tasks loaded yet.</p>
+            </div>
+            {% endif %}
+        </div>
+
+        <!-- Timeline Tab -->
+        <div x-show="activeTab === 'timeline'" class="p-4">
+            <div class="text-center py-12">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+                </svg>
+                <p class="mt-2 text-sm text-gray-500">Timeline visualization coming soon.</p>
+            </div>
+        </div>
+
+        <!-- Logs Tab -->
+        <div x-show="activeTab === 'logs'" class="p-4">
+            <div class="bg-gray-900 rounded-lg p-4 font-mono text-sm text-gray-300 h-96 overflow-y-auto" id="log-viewer">
+                <p class="text-gray-500">Waiting for logs...</p>
+                <p class="text-gray-500">Connect to WebSocket for real-time updates.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_scripts %}
+<script>
+// Custom filter for JSON parsing in Jinja2
+</script>
+{% endblock %}
+{% endblock %}
