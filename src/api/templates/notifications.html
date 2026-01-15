@@ -1,0 +1,604 @@
+{% extends "base.html" %}
+
+{% block title %}Notifications - PRDForge{% endblock %}
+
+{% block header %}Notifications{% endblock %}
+
+{% block content %}
+<div x-data="notificationsPage()" x-init="init()" class="space-y-6">
+    <!-- Tabs -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="border-b border-gray-200">
+            <nav class="-mb-px flex space-x-8 px-4" aria-label="Tabs">
+                <button @click="activeTab = 'notifications'"
+                        :class="activeTab === 'notifications' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                    Notifications
+                    <span x-show="unreadCount > 0" class="ml-2 bg-indigo-100 text-indigo-600 py-0.5 px-2 rounded-full text-xs" x-text="unreadCount"></span>
+                </button>
+                <button @click="activeTab = 'settings'"
+                        :class="activeTab === 'settings' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                    Settings
+                </button>
+                <button @click="activeTab = 'webhooks'"
+                        :class="activeTab === 'webhooks' ? 'border-indigo-500 text-indigo-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'"
+                        class="whitespace-nowrap py-4 px-1 border-b-2 font-medium text-sm">
+                    Webhook History
+                </button>
+            </nav>
+        </div>
+
+        <!-- Notifications Tab -->
+        <div x-show="activeTab === 'notifications'" class="p-4">
+            <!-- Filters -->
+            <div class="flex items-center justify-between mb-4">
+                <div class="flex items-center space-x-4">
+                    <label class="flex items-center">
+                        <input type="checkbox" x-model="showUnreadOnly"
+                               @change="loadNotifications()"
+                               class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                        <span class="ml-2 text-sm text-gray-700">Unread only</span>
+                    </label>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <button @click="markAllAsRead()" :disabled="unreadCount === 0"
+                            class="text-sm text-indigo-600 hover:text-indigo-800 disabled:opacity-50 disabled:cursor-not-allowed">
+                        Mark all as read
+                    </button>
+                    <button @click="loadNotifications()" class="text-sm text-gray-600 hover:text-gray-800">
+                        Refresh
+                    </button>
+                </div>
+            </div>
+
+            <!-- Notifications List -->
+            <div class="space-y-2">
+                <template x-if="notifications.length === 0">
+                    <div class="text-center py-8 text-gray-500">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                        </svg>
+                        <p class="mt-2" x-text="showUnreadOnly ? 'No unread notifications' : 'No notifications yet'"></p>
+                    </div>
+                </template>
+
+                <template x-for="notification in notifications" :key="notification.id">
+                    <div class="border rounded-lg p-4 hover:bg-gray-50 transition-colors"
+                         :class="{'bg-indigo-50 border-indigo-200': !notification.is_read, 'bg-white': notification.is_read}">
+                        <div class="flex items-start justify-between">
+                            <div class="flex-1 min-w-0">
+                                <div class="flex items-center space-x-2">
+                                    <span class="px-2 py-1 text-xs font-medium rounded"
+                                          :class="getPriorityClass(notification.priority)"
+                                          x-text="notification.priority"></span>
+                                    <span class="px-2 py-1 text-xs font-medium rounded bg-gray-100 text-gray-800"
+                                          x-text="formatEventType(notification.event_type)"></span>
+                                </div>
+                                <h4 class="mt-1 font-medium text-gray-900" x-text="notification.title"></h4>
+                                <p class="mt-1 text-sm text-gray-600" x-text="notification.message"></p>
+                                <p class="mt-1 text-xs text-gray-400" x-text="formatDate(notification.created_at)"></p>
+                            </div>
+                            <div class="flex items-center space-x-2 ml-4">
+                                <template x-if="!notification.is_read">
+                                    <button @click="markAsRead(notification.id)"
+                                            class="text-indigo-600 hover:text-indigo-800"
+                                            title="Mark as read">
+                                        <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                        </svg>
+                                    </button>
+                                </template>
+                                <button @click="deleteNotification(notification.id)"
+                                        class="text-red-500 hover:text-red-700"
+                                        title="Delete">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Settings Tab -->
+        <div x-show="activeTab === 'settings'" class="p-4">
+            <div class="max-w-2xl">
+                <!-- Project Selector -->
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Project</label>
+                    <select x-model="selectedProjectId" @change="loadProjectConfig()"
+                            class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        <option value="">Select a project...</option>
+                        <template x-for="project in projects" :key="project.id">
+                            <option :value="project.id" x-text="project.name"></option>
+                        </template>
+                    </select>
+                </div>
+
+                <template x-if="selectedProjectId">
+                    <div class="space-y-6">
+                        <!-- Enable/Disable -->
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h3 class="text-lg font-medium text-gray-900">Notifications Enabled</h3>
+                                <p class="text-sm text-gray-500">Enable or disable all notifications for this project</p>
+                            </div>
+                            <button @click="config.is_enabled = !config.is_enabled"
+                                    :class="config.is_enabled ? 'bg-indigo-600' : 'bg-gray-200'"
+                                    class="relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2">
+                                <span :class="config.is_enabled ? 'translate-x-5' : 'translate-x-0'"
+                                      class="pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out"></span>
+                            </button>
+                        </div>
+
+                        <!-- Channels -->
+                        <div>
+                            <h3 class="text-lg font-medium text-gray-900 mb-2">Notification Channels</h3>
+                            <div class="space-y-2">
+                                <label class="flex items-center">
+                                    <input type="checkbox" :checked="config.channels.includes('in_app')"
+                                           @change="toggleChannel('in_app')"
+                                           class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                    <span class="ml-2 text-sm text-gray-700">In-App Notifications</span>
+                                </label>
+                                <label class="flex items-center">
+                                    <input type="checkbox" :checked="config.channels.includes('webhook')"
+                                           @change="toggleChannel('webhook')"
+                                           class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                    <span class="ml-2 text-sm text-gray-700">Webhook</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <!-- Webhook URL -->
+                        <div x-show="config.channels.includes('webhook')">
+                            <label class="block text-sm font-medium text-gray-700 mb-1">Webhook URL</label>
+                            <input type="url" x-model="config.webhook_url" placeholder="https://example.com/webhook"
+                                   class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <div class="mt-2 flex items-center space-x-4">
+                                <span x-show="config.has_secret" class="text-sm text-green-600">
+                                    <svg class="inline h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                                    </svg>
+                                    Secret configured
+                                </span>
+                                <button @click="config.generate_secret = true; saveConfig()"
+                                        class="text-sm text-indigo-600 hover:text-indigo-800">
+                                    Generate new secret
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Events -->
+                        <div>
+                            <h3 class="text-lg font-medium text-gray-900 mb-2">Notification Events</h3>
+                            <p class="text-sm text-gray-500 mb-3">Select which events should trigger notifications</p>
+
+                            <!-- Event Groups -->
+                            <div class="space-y-4">
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-700 mb-2">Run Events</h4>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <template x-for="event in eventTypes.filter(e => e.value.startsWith('run_'))" :key="event.value">
+                                            <label class="flex items-center">
+                                                <input type="checkbox" :checked="config.events.includes(event.value)"
+                                                       @change="toggleEvent(event.value)"
+                                                       class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                                <span class="ml-2 text-sm text-gray-700" x-text="formatEventType(event.value)"></span>
+                                            </label>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-700 mb-2">Task Events</h4>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <template x-for="event in eventTypes.filter(e => e.value.startsWith('task_'))" :key="event.value">
+                                            <label class="flex items-center">
+                                                <input type="checkbox" :checked="config.events.includes(event.value)"
+                                                       @change="toggleEvent(event.value)"
+                                                       class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                                <span class="ml-2 text-sm text-gray-700" x-text="formatEventType(event.value)"></span>
+                                            </label>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-700 mb-2">Budget Events</h4>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <template x-for="event in eventTypes.filter(e => e.value.startsWith('budget_'))" :key="event.value">
+                                            <label class="flex items-center">
+                                                <input type="checkbox" :checked="config.events.includes(event.value)"
+                                                       @change="toggleEvent(event.value)"
+                                                       class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                                <span class="ml-2 text-sm text-gray-700" x-text="formatEventType(event.value)"></span>
+                                            </label>
+                                        </template>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h4 class="text-sm font-medium text-gray-700 mb-2">Quality Gate Events</h4>
+                                    <div class="grid grid-cols-2 gap-2">
+                                        <template x-for="event in eventTypes.filter(e => e.value.startsWith('quality_'))" :key="event.value">
+                                            <label class="flex items-center">
+                                                <input type="checkbox" :checked="config.events.includes(event.value)"
+                                                       @change="toggleEvent(event.value)"
+                                                       class="rounded border-gray-300 text-indigo-600 focus:ring-indigo-500">
+                                                <span class="ml-2 text-sm text-gray-700" x-text="formatEventType(event.value)"></span>
+                                            </label>
+                                        </template>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Save Button -->
+                        <div class="flex justify-end pt-4 border-t">
+                            <button @click="saveConfig()" :disabled="saving"
+                                    class="px-4 py-2 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:opacity-50">
+                                <span x-show="!saving">Save Configuration</span>
+                                <span x-show="saving">Saving...</span>
+                            </button>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+
+        <!-- Webhooks Tab -->
+        <div x-show="activeTab === 'webhooks'" class="p-4">
+            <template x-if="!selectedProjectId">
+                <p class="text-gray-500">Select a project in the Settings tab to view webhook history.</p>
+            </template>
+
+            <template x-if="selectedProjectId">
+                <div>
+                    <!-- Stats -->
+                    <div class="grid grid-cols-4 gap-4 mb-6">
+                        <div class="bg-gray-50 rounded-lg p-4 text-center">
+                            <p class="text-2xl font-bold text-gray-900" x-text="webhookStats.total"></p>
+                            <p class="text-sm text-gray-500">Total Deliveries</p>
+                        </div>
+                        <div class="bg-green-50 rounded-lg p-4 text-center">
+                            <p class="text-2xl font-bold text-green-600" x-text="webhookStats.successful"></p>
+                            <p class="text-sm text-gray-500">Successful</p>
+                        </div>
+                        <div class="bg-red-50 rounded-lg p-4 text-center">
+                            <p class="text-2xl font-bold text-red-600" x-text="webhookStats.failed"></p>
+                            <p class="text-sm text-gray-500">Failed</p>
+                        </div>
+                        <div class="bg-indigo-50 rounded-lg p-4 text-center">
+                            <p class="text-2xl font-bold text-indigo-600" x-text="webhookStats.success_rate.toFixed(1) + '%'"></p>
+                            <p class="text-sm text-gray-500">Success Rate</p>
+                        </div>
+                    </div>
+
+                    <!-- Delivery History -->
+                    <h3 class="text-lg font-medium text-gray-900 mb-4">Recent Deliveries</h3>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Event</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Response</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Attempt</th>
+                                    <th class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">Time</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <template x-for="delivery in webhookDeliveries" :key="delivery.id">
+                                    <tr>
+                                        <td class="px-4 py-3 text-sm text-gray-900" x-text="formatEventType(delivery.event_type)"></td>
+                                        <td class="px-4 py-3">
+                                            <span :class="delivery.success ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'"
+                                                  class="px-2 py-1 text-xs font-medium rounded"
+                                                  x-text="delivery.success ? 'Success' : 'Failed'"></span>
+                                        </td>
+                                        <td class="px-4 py-3 text-sm text-gray-500" x-text="delivery.response_status || 'N/A'"></td>
+                                        <td class="px-4 py-3 text-sm text-gray-500" x-text="delivery.attempt"></td>
+                                        <td class="px-4 py-3 text-sm text-gray-500" x-text="formatDate(delivery.created_at)"></td>
+                                    </tr>
+                                </template>
+                                <template x-if="webhookDeliveries.length === 0">
+                                    <tr>
+                                        <td colspan="5" class="px-4 py-8 text-center text-gray-500">No webhook deliveries yet</td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </template>
+        </div>
+    </div>
+
+    <!-- Success/Error Messages -->
+    <template x-if="message">
+        <div class="fixed bottom-4 right-4 px-4 py-3 rounded-lg shadow-lg"
+             :class="messageType === 'success' ? 'bg-green-500 text-white' : 'bg-red-500 text-white'">
+            <p x-text="message"></p>
+        </div>
+    </template>
+</div>
+
+<script>
+function notificationsPage() {
+    return {
+        activeTab: 'notifications',
+        notifications: [],
+        unreadCount: 0,
+        showUnreadOnly: false,
+        projects: [],
+        selectedProjectId: '',
+        config: {
+            events: [],
+            channels: ['in_app'],
+            webhook_url: '',
+            is_enabled: true,
+            has_secret: false,
+            generate_secret: false,
+        },
+        eventTypes: [],
+        webhookDeliveries: [],
+        webhookStats: { total: 0, successful: 0, failed: 0, success_rate: 100 },
+        saving: false,
+        message: null,
+        messageType: 'success',
+
+        async init() {
+            await this.loadEventTypes();
+            await this.loadNotifications();
+            await this.loadProjects();
+        },
+
+        getToken() {
+            return localStorage.getItem('prdforge_token') || sessionStorage.getItem('prdforge_token');
+        },
+
+        async loadEventTypes() {
+            try {
+                const response = await fetch('/api/notifications/event-types');
+                const data = await response.json();
+                this.eventTypes = data.event_types;
+            } catch (e) {
+                console.error('Failed to load event types:', e);
+            }
+        },
+
+        async loadNotifications() {
+            const token = this.getToken();
+            if (!token) return;
+
+            try {
+                const response = await fetch(`/api/notifications?token=${token}&unread_only=${this.showUnreadOnly}`);
+                if (response.ok) {
+                    this.notifications = await response.json();
+                }
+
+                const countResponse = await fetch(`/api/notifications/count?token=${token}`);
+                if (countResponse.ok) {
+                    const data = await countResponse.json();
+                    this.unreadCount = data.unread_count;
+                }
+            } catch (e) {
+                console.error('Failed to load notifications:', e);
+            }
+        },
+
+        async loadProjects() {
+            try {
+                const response = await fetch('/api/projects');
+                if (response.ok) {
+                    this.projects = await response.json();
+                }
+            } catch (e) {
+                console.error('Failed to load projects:', e);
+            }
+        },
+
+        async loadProjectConfig() {
+            if (!this.selectedProjectId) return;
+
+            const token = this.getToken();
+            if (!token) return;
+
+            try {
+                const response = await fetch(`/api/projects/${this.selectedProjectId}/notifications/config?token=${token}`);
+                if (response.ok) {
+                    const data = await response.json();
+                    if (data) {
+                        this.config = {
+                            events: data.events || [],
+                            channels: data.channels || ['in_app'],
+                            webhook_url: data.webhook_url || '',
+                            is_enabled: data.is_enabled,
+                            has_secret: data.has_secret,
+                            generate_secret: false,
+                        };
+                    } else {
+                        this.config = {
+                            events: [],
+                            channels: ['in_app'],
+                            webhook_url: '',
+                            is_enabled: true,
+                            has_secret: false,
+                            generate_secret: false,
+                        };
+                    }
+                }
+
+                // Load webhook stats and deliveries
+                await this.loadWebhookData();
+            } catch (e) {
+                console.error('Failed to load project config:', e);
+            }
+        },
+
+        async loadWebhookData() {
+            if (!this.selectedProjectId) return;
+
+            const token = this.getToken();
+            if (!token) return;
+
+            try {
+                const [statsResponse, deliveriesResponse] = await Promise.all([
+                    fetch(`/api/projects/${this.selectedProjectId}/webhooks/stats?token=${token}`),
+                    fetch(`/api/projects/${this.selectedProjectId}/webhooks?token=${token}`),
+                ]);
+
+                if (statsResponse.ok) {
+                    this.webhookStats = await statsResponse.json();
+                }
+                if (deliveriesResponse.ok) {
+                    this.webhookDeliveries = await deliveriesResponse.json();
+                }
+            } catch (e) {
+                console.error('Failed to load webhook data:', e);
+            }
+        },
+
+        async saveConfig() {
+            if (!this.selectedProjectId) return;
+
+            const token = this.getToken();
+            if (!token) return;
+
+            this.saving = true;
+            try {
+                const response = await fetch(`/api/projects/${this.selectedProjectId}/notifications/config?token=${token}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        events: this.config.events,
+                        channels: this.config.channels,
+                        webhook_url: this.config.webhook_url || null,
+                        is_enabled: this.config.is_enabled,
+                        generate_secret: this.config.generate_secret,
+                    }),
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    this.config.has_secret = data.has_secret;
+                    this.config.generate_secret = false;
+                    this.showMessage('Configuration saved', 'success');
+                } else {
+                    this.showMessage('Failed to save configuration', 'error');
+                }
+            } catch (e) {
+                this.showMessage('Network error', 'error');
+            } finally {
+                this.saving = false;
+            }
+        },
+
+        toggleChannel(channel) {
+            const idx = this.config.channels.indexOf(channel);
+            if (idx >= 0) {
+                this.config.channels.splice(idx, 1);
+            } else {
+                this.config.channels.push(channel);
+            }
+        },
+
+        toggleEvent(event) {
+            const idx = this.config.events.indexOf(event);
+            if (idx >= 0) {
+                this.config.events.splice(idx, 1);
+            } else {
+                this.config.events.push(event);
+            }
+        },
+
+        async markAsRead(notificationId) {
+            const token = this.getToken();
+            if (!token) return;
+
+            try {
+                const response = await fetch(`/api/notifications/${notificationId}/read?token=${token}`, {
+                    method: 'POST',
+                });
+                if (response.ok) {
+                    await this.loadNotifications();
+                }
+            } catch (e) {
+                console.error('Failed to mark as read:', e);
+            }
+        },
+
+        async markAllAsRead() {
+            const token = this.getToken();
+            if (!token) return;
+
+            try {
+                const response = await fetch(`/api/notifications/read-all?token=${token}`, {
+                    method: 'POST',
+                });
+                if (response.ok) {
+                    await this.loadNotifications();
+                    this.showMessage('All notifications marked as read', 'success');
+                }
+            } catch (e) {
+                console.error('Failed to mark all as read:', e);
+            }
+        },
+
+        async deleteNotification(notificationId) {
+            const token = this.getToken();
+            if (!token) return;
+
+            try {
+                const response = await fetch(`/api/notifications/${notificationId}?token=${token}`, {
+                    method: 'DELETE',
+                });
+                if (response.ok) {
+                    await this.loadNotifications();
+                }
+            } catch (e) {
+                console.error('Failed to delete notification:', e);
+            }
+        },
+
+        getPriorityClass(priority) {
+            const classes = {
+                'low': 'bg-gray-100 text-gray-800',
+                'normal': 'bg-blue-100 text-blue-800',
+                'high': 'bg-orange-100 text-orange-800',
+                'urgent': 'bg-red-100 text-red-800',
+            };
+            return classes[priority] || classes['normal'];
+        },
+
+        formatEventType(eventType) {
+            return eventType.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+        },
+
+        formatDate(dateStr) {
+            if (!dateStr) return 'N/A';
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diff = now - date;
+
+            if (diff < 60000) return 'Just now';
+            if (diff < 3600000) return `${Math.floor(diff/60000)}m ago`;
+            if (diff < 86400000) return `${Math.floor(diff/3600000)}h ago`;
+            return date.toLocaleDateString();
+        },
+
+        showMessage(text, type) {
+            this.message = text;
+            this.messageType = type;
+            setTimeout(() => {
+                this.message = null;
+            }, 3000);
+        },
+    }
+}
+</script>
+{% endblock %}

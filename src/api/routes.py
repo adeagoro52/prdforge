@@ -2103,6 +2103,16 @@ def settings_page(request: Request):
     )
 
 
+@pages_router.get("/notifications", response_class=HTMLResponse)
+def notifications_page(request: Request):
+    """Notifications management page."""
+    templates = get_templates()
+    return templates.TemplateResponse(
+        "notifications.html",
+        {"request": request},
+    )
+
+
 # Notification API Endpoints
 from src.engine.notification_service import (
     NotificationService,

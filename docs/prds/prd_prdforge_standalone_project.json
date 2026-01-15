@@ -828,7 +828,7 @@
         "Support notification filtering",
         "Add mark all as read functionality"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "manual",
       "blocked_by": [
         "phase5-008"
