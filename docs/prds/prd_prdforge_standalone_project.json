@@ -130,7 +130,7 @@
         "Define unified PRD dataclass that both parsers produce",
         "Add format auto-detection based on file extension and content"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "unit",
       "blocked_by": ["phase1-001"]
     },
@@ -147,7 +147,7 @@
         "Support both local path projects and git URL projects",
         "Add project initialization command to create config template"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "unit",
       "blocked_by": ["phase1-001"]
     },
@@ -164,7 +164,7 @@
         "Add migration system for schema evolution",
         "Create database initialization on first run"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "unit",
       "blocked_by": ["phase1-001"]
     },
@@ -181,7 +181,7 @@
         "Add --config flag to specify config file location",
         "Create console entry point in pyproject.toml/setup.py"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "manual",
       "blocked_by": ["phase1-006", "phase1-007"]
     },
