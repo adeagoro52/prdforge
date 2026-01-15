@@ -81,7 +81,9 @@
       ],
       "passes": true,
       "test_coverage": "unit",
-      "blocked_by": ["phase1-001"]
+      "blocked_by": [
+        "phase1-001"
+      ]
     },
     {
       "id": "phase1-003",
@@ -98,7 +100,9 @@
       ],
       "passes": true,
       "test_coverage": "unit",
-      "blocked_by": ["phase1-002"]
+      "blocked_by": [
+        "phase1-002"
+      ]
     },
     {
       "id": "phase1-004",
@@ -115,7 +119,9 @@
       ],
       "passes": true,
       "test_coverage": "unit",
-      "blocked_by": ["phase1-002"]
+      "blocked_by": [
+        "phase1-002"
+      ]
     },
     {
       "id": "phase1-005",
@@ -132,7 +138,9 @@
       ],
       "passes": true,
       "test_coverage": "unit",
-      "blocked_by": ["phase1-001"]
+      "blocked_by": [
+        "phase1-001"
+      ]
     },
     {
       "id": "phase1-006",
@@ -149,7 +157,9 @@
       ],
       "passes": true,
       "test_coverage": "unit",
-      "blocked_by": ["phase1-001"]
+      "blocked_by": [
+        "phase1-001"
+      ]
     },
     {
       "id": "phase1-007",
@@ -166,7 +176,9 @@
       ],
       "passes": true,
       "test_coverage": "unit",
-      "blocked_by": ["phase1-001"]
+      "blocked_by": [
+        "phase1-001"
+      ]
     },
     {
       "id": "phase1-008",
@@ -183,7 +195,10 @@
       ],
       "passes": true,
       "test_coverage": "manual",
-      "blocked_by": ["phase1-006", "phase1-007"]
+      "blocked_by": [
+        "phase1-006",
+        "phase1-007"
+      ]
     },
     {
       "id": "phase2-001",
@@ -200,7 +215,9 @@
       ],
       "passes": true,
       "test_coverage": "none",
-      "blocked_by": ["phase1-008"]
+      "blocked_by": [
+        "phase1-008"
+      ]
     },
     {
       "id": "phase2-002",
@@ -218,7 +235,10 @@
       ],
       "passes": true,
       "test_coverage": "integration",
-      "blocked_by": ["phase1-007", "phase1-008"]
+      "blocked_by": [
+        "phase1-007",
+        "phase1-008"
+      ]
     },
     {
       "id": "phase2-003",
@@ -235,7 +255,10 @@
       ],
       "passes": true,
       "test_coverage": "manual",
-      "blocked_by": ["phase2-001", "phase2-002"]
+      "blocked_by": [
+        "phase2-001",
+        "phase2-002"
+      ]
     },
     {
       "id": "phase2-004",
@@ -252,7 +275,9 @@
       ],
       "passes": true,
       "test_coverage": "manual",
-      "blocked_by": ["phase2-003"]
+      "blocked_by": [
+        "phase2-003"
+      ]
     },
     {
       "id": "phase2-005",
@@ -269,7 +294,9 @@
       ],
       "passes": true,
       "test_coverage": "manual",
-      "blocked_by": ["phase2-003"]
+      "blocked_by": [
+        "phase2-003"
+      ]
     },
     {
       "id": "phase2-006",
@@ -286,7 +313,9 @@
       ],
       "passes": true,
       "test_coverage": "manual",
-      "blocked_by": ["phase2-005"]
+      "blocked_by": [
+        "phase2-005"
+      ]
     },
     {
       "id": "phase2-007",
@@ -303,7 +332,9 @@
       ],
       "passes": true,
       "test_coverage": "manual",
-      "blocked_by": ["phase2-002"]
+      "blocked_by": [
+        "phase2-002"
+      ]
     },
     {
       "id": "phase2-008",
@@ -320,7 +351,9 @@
       ],
       "passes": true,
       "test_coverage": "manual",
-      "blocked_by": ["phase2-003"]
+      "blocked_by": [
+        "phase2-003"
+      ]
     },
     {
       "id": "phase2-009",
@@ -337,7 +370,10 @@
       ],
       "passes": true,
       "test_coverage": "manual",
-      "blocked_by": ["phase2-001", "phase2-002"]
+      "blocked_by": [
+        "phase2-001",
+        "phase2-002"
+      ]
     },
     {
       "id": "phase2-010",
@@ -354,7 +390,9 @@
       ],
       "passes": true,
       "test_coverage": "none",
-      "blocked_by": ["phase2-009"]
+      "blocked_by": [
+        "phase2-009"
+      ]
     },
     {
       "id": "phase3-001",
@@ -371,7 +409,9 @@
       ],
       "passes": true,
       "test_coverage": "unit",
-      "blocked_by": ["phase2-010"]
+      "blocked_by": [
+        "phase2-010"
+      ]
     },
     {
       "id": "phase3-002",
@@ -388,7 +428,9 @@
       ],
       "passes": true,
       "test_coverage": "unit",
-      "blocked_by": ["phase2-010"]
+      "blocked_by": [
+        "phase2-010"
+      ]
     },
     {
       "id": "phase3-003",
@@ -405,7 +447,9 @@
       ],
       "passes": true,
       "test_coverage": "unit",
-      "blocked_by": ["phase3-002"]
+      "blocked_by": [
+        "phase3-002"
+      ]
     },
     {
       "id": "phase3-004",
@@ -422,7 +466,9 @@
       ],
       "passes": true,
       "test_coverage": "unit",
-      "blocked_by": ["phase3-003"]
+      "blocked_by": [
+        "phase3-003"
+      ]
     },
     {
       "id": "phase3-005",
@@ -439,7 +485,9 @@
       ],
       "passes": true,
       "test_coverage": "manual",
-      "blocked_by": ["phase3-001"]
+      "blocked_by": [
+        "phase3-001"
+      ]
     },
     {
       "id": "phase3-006",
@@ -456,7 +504,10 @@
       ],
       "passes": true,
       "test_coverage": "manual",
-      "blocked_by": ["phase3-003", "phase3-005"]
+      "blocked_by": [
+        "phase3-003",
+        "phase3-005"
+      ]
     },
     {
       "id": "phase3-007",
@@ -473,7 +524,9 @@
       ],
       "passes": true,
       "test_coverage": "integration",
-      "blocked_by": ["phase3-001"]
+      "blocked_by": [
+        "phase3-001"
+      ]
     },
     {
       "id": "phase3-008",
@@ -490,7 +543,9 @@
       ],
       "passes": true,
       "test_coverage": "unit",
-      "blocked_by": ["phase3-002"]
+      "blocked_by": [
+        "phase3-002"
+      ]
     },
     {
       "id": "phase4-001",
@@ -505,9 +560,11 @@
         "Create executor selection logic based on task/project config",
         "Add plugin health check functionality"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "unit",
-      "blocked_by": ["phase3-008"]
+      "blocked_by": [
+        "phase3-008"
+      ]
     },
     {
       "id": "phase4-002",
@@ -522,9 +579,11 @@
         "Implement retry and error handling for Codex API",
         "Add Codex-specific configuration options"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "integration",
-      "blocked_by": ["phase4-001"]
+      "blocked_by": [
+        "phase4-001"
+      ]
     },
     {
       "id": "phase4-003",
@@ -539,9 +598,11 @@
         "Implement retry and error handling for Gemini API",
         "Add Gemini-specific configuration options"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "integration",
-      "blocked_by": ["phase4-001"]
+      "blocked_by": [
+        "phase4-001"
+      ]
     },
     {
       "id": "phase4-004",
@@ -556,9 +617,11 @@
         "Add token counting and budget management",
         "Support Claude-specific features (extended thinking, etc.)"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "integration",
-      "blocked_by": ["phase4-001"]
+      "blocked_by": [
+        "phase4-001"
+      ]
     },
     {
       "id": "phase4-005",
@@ -573,9 +636,11 @@
         "Add executor testing/validation UI",
         "Show executor usage statistics"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "manual",
-      "blocked_by": ["phase4-001"]
+      "blocked_by": [
+        "phase4-001"
+      ]
     },
     {
       "id": "phase4-006",
@@ -590,9 +655,13 @@
         "Implement cost-based executor selection option",
         "Add executor rate limiting coordination"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "unit",
-      "blocked_by": ["phase4-002", "phase4-003", "phase4-004"]
+      "blocked_by": [
+        "phase4-002",
+        "phase4-003",
+        "phase4-004"
+      ]
     },
     {
       "id": "phase5-001",
@@ -609,7 +678,9 @@
       ],
       "passes": false,
       "test_coverage": "unit",
-      "blocked_by": ["phase4-006"]
+      "blocked_by": [
+        "phase4-006"
+      ]
     },
     {
       "id": "phase5-002",
@@ -626,7 +697,9 @@
       ],
       "passes": false,
       "test_coverage": "manual",
-      "blocked_by": ["phase5-001"]
+      "blocked_by": [
+        "phase5-001"
+      ]
     },
     {
       "id": "phase5-003",
@@ -643,7 +716,9 @@
       ],
       "passes": false,
       "test_coverage": "manual",
-      "blocked_by": ["phase3-007"]
+      "blocked_by": [
+        "phase3-007"
+      ]
     },
     {
       "id": "phase5-004",
@@ -660,7 +735,9 @@
       ],
       "passes": false,
       "test_coverage": "unit",
-      "blocked_by": ["phase3-004"]
+      "blocked_by": [
+        "phase3-004"
+      ]
     },
     {
       "id": "phase5-005",
@@ -677,7 +754,9 @@
       ],
       "passes": false,
       "test_coverage": "manual",
-      "blocked_by": ["phase5-004"]
+      "blocked_by": [
+        "phase5-004"
+      ]
     },
     {
       "id": "phase5-006",
@@ -694,7 +773,9 @@
       ],
       "passes": false,
       "test_coverage": "unit",
-      "blocked_by": ["phase5-001"]
+      "blocked_by": [
+        "phase5-001"
+      ]
     },
     {
       "id": "phase5-007",
@@ -711,7 +792,9 @@
       ],
       "passes": false,
       "test_coverage": "manual",
-      "blocked_by": ["phase5-006"]
+      "blocked_by": [
+        "phase5-006"
+      ]
     },
     {
       "id": "phase5-008",
@@ -728,7 +811,9 @@
       ],
       "passes": false,
       "test_coverage": "unit",
-      "blocked_by": ["phase5-006"]
+      "blocked_by": [
+        "phase5-006"
+      ]
     },
     {
       "id": "phase5-009",
@@ -745,7 +830,9 @@
       ],
       "passes": false,
       "test_coverage": "manual",
-      "blocked_by": ["phase5-008"]
+      "blocked_by": [
+        "phase5-008"
+      ]
     },
     {
       "id": "phase5-010",
@@ -762,7 +849,9 @@
       ],
       "passes": false,
       "test_coverage": "none",
-      "blocked_by": ["phase5-009"]
+      "blocked_by": [
+        "phase5-009"
+      ]
     }
   ]
 }

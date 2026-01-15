@@ -4,7 +4,6 @@ This module provides an executor that uses the Claude CLI tool
 to execute PRD tasks.
 """
 
-import json
 import os
 import re
 import shutil
@@ -16,11 +15,15 @@ from typing import Any
 from src.engine.logging import logger
 
 from .base import (
-    BaseExecutor,
     ExecutionResult,
     ExecutorConfig,
     ExecutorStatus,
     TaskContext,
+)
+from .plugin import (
+    ExecutorPlugin,
+    PluginConfigField,
+    PluginSchema,
 )
 
 
@@ -147,7 +150,7 @@ class OutputParser:
         return result
 
 
-class ClaudeCLIExecutor(BaseExecutor):
+class ClaudeCLIExecutor(ExecutorPlugin):
     """Executor that uses the Claude CLI tool.
 
     This executor shells out to the `claude` command-line tool to
@@ -157,15 +160,122 @@ class ClaudeCLIExecutor(BaseExecutor):
     - Error detection and retry logic
     """
 
-    def __init__(self, config: ClaudeCLIConfig | None = None) -> None:
+    def __init__(self, config: ClaudeCLIConfig | ExecutorConfig | None = None) -> None:
         """Initialize the Claude CLI executor.
 
         Args:
             config: Claude CLI specific configuration.
         """
+        # Convert ExecutorConfig to ClaudeCLIConfig if needed
+        if config is not None and not isinstance(config, ClaudeCLIConfig):
+            config = ClaudeCLIConfig(
+                max_retries=config.max_retries,
+                base_delay=config.base_delay,
+                max_delay=config.max_delay,
+                timeout=config.timeout,
+                model=config.model,
+                temperature=config.temperature,
+                max_tokens=config.max_tokens,
+                extra=config.extra,
+            )
         super().__init__(config or ClaudeCLIConfig())
         self._claude_path: str | None = None
         self._version_cache: str | None = None
+
+    @classmethod
+    def get_plugin_info(cls) -> dict[str, Any]:
+        """Get plugin metadata.
+
+        Returns:
+            Dict with plugin info.
+        """
+        return {
+            "name": "claude-cli",
+            "display_name": "Claude CLI",
+            "description": "Execute tasks using the Claude Code CLI tool. "
+            "Requires Claude CLI to be installed on the system.",
+            "version": "1.0.0",
+            "author": "PRDForge",
+            "homepage": "https://claude.ai/claude-code",
+        }
+
+    @classmethod
+    def get_config_schema(cls) -> PluginSchema:
+        """Get the configuration schema for this plugin.
+
+        Returns:
+            PluginSchema defining all configuration options.
+        """
+        return PluginSchema(
+            fields=[
+                PluginConfigField(
+                    name="claude_path",
+                    type="string",
+                    description="Path to claude CLI executable (auto-detected if not set)",
+                    required=False,
+                ),
+                PluginConfigField(
+                    name="model",
+                    type="string",
+                    description="Claude model to use",
+                    required=False,
+                    default="claude-sonnet-4-20250514",
+                    enum=[
+                        "claude-opus-4-20250514",
+                        "claude-sonnet-4-20250514",
+                        "claude-haiku-3-5-20241022",
+                    ],
+                ),
+                PluginConfigField(
+                    name="max_turns",
+                    type="integer",
+                    description="Maximum conversation turns",
+                    required=False,
+                    default=50,
+                    min_value=1,
+                    max_value=200,
+                ),
+                PluginConfigField(
+                    name="timeout",
+                    type="integer",
+                    description="Execution timeout in seconds",
+                    required=False,
+                    default=600,
+                    min_value=60,
+                    max_value=3600,
+                ),
+                PluginConfigField(
+                    name="max_retries",
+                    type="integer",
+                    description="Maximum retry attempts on failure",
+                    required=False,
+                    default=3,
+                    min_value=0,
+                    max_value=10,
+                ),
+                PluginConfigField(
+                    name="print_output",
+                    type="boolean",
+                    description="Print output in real-time",
+                    required=False,
+                    default=False,
+                ),
+            ]
+        )
+
+    @classmethod
+    def get_capabilities(cls) -> list[str]:
+        """Get list of capabilities supported by this plugin.
+
+        Returns:
+            List of capability names.
+        """
+        return [
+            "code_generation",
+            "tool_use",
+            "file_editing",
+            "bash_execution",
+        ]
 
     @property
     def config(self) -> ClaudeCLIConfig:

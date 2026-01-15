@@ -8,46 +8,8 @@ from typing import Any
 
 from src.engine.logging import logger
 
-from .base import BaseExecutor, ExecutorConfig, ExecutionResult, TaskContext
-
-
-class DryRunExecutor(BaseExecutor):
-    """Executor that simulates task execution without making changes.
-
-    Useful for testing the execution flow without actual AI calls.
-    """
-
-    @property
-    def name(self) -> str:
-        return "dry-run"
-
-    @property
-    def version(self) -> str:
-        return "1.0.0"
-
-    def _execute_impl(self, context: TaskContext) -> ExecutionResult:
-        """Simulate task execution.
-
-        Args:
-            context: Task execution context.
-
-        Returns:
-            ExecutionResult indicating simulated success.
-        """
-        logger.info(f"[DRY RUN] Simulating execution of task: {context.task_id}")
-        logger.debug(f"[DRY RUN] Description: {context.description}")
-        logger.debug(f"[DRY RUN] Steps: {len(context.steps)}")
-
-        return ExecutionResult(
-            success=True,
-            output=f"[DRY RUN] Task {context.task_id} simulated successfully.\n"
-                   f"Description: {context.description}\n"
-                   f"Steps: {len(context.steps)}",
-            metadata={
-                "simulated": True,
-                "steps_count": len(context.steps),
-            },
-        )
+from .base import BaseExecutor, ExecutorConfig
+from .dry_run import DryRunExecutor
 
 
 class ExecutorRegistry:

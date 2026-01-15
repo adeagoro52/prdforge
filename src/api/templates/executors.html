@@ -1,0 +1,286 @@
+{% extends "base.html" %}
+
+{% block title %}Executors - PRDForge{% endblock %}
+
+{% block header %}AI Executor Plugins{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <!-- Executors Overview -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <div class="flex items-center justify-between mb-4">
+            <h2 class="text-lg font-medium text-gray-900">Available Executors</h2>
+            <span class="text-sm text-gray-500">{{ executors|length }} executors total</span>
+        </div>
+        <p class="text-sm text-gray-600 mb-4">
+            Executors are AI backends that can be used to execute PRD tasks.
+            Each executor has different capabilities, pricing, and configuration options.
+        </p>
+    </div>
+
+    <!-- Executor Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        {% for executor in executors %}
+        <div class="bg-white shadow rounded-lg overflow-hidden">
+            <div class="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                <div class="flex items-center justify-between">
+                    <h3 class="text-md font-medium text-gray-900">{{ executor.display_name }}</h3>
+                    <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium
+                        {% if executor.healthy %}bg-green-100 text-green-800{% else %}bg-yellow-100 text-yellow-800{% endif %}">
+                        {% if executor.healthy %}Available{% else %}Not Configured{% endif %}
+                    </span>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">{{ executor.source }}</p>
+            </div>
+            <div class="px-6 py-4">
+                <p class="text-sm text-gray-600 mb-4">{{ executor.description }}</p>
+
+                <!-- Capabilities -->
+                <div class="mb-4">
+                    <h4 class="text-xs font-medium text-gray-500 uppercase mb-2">Capabilities</h4>
+                    <div class="flex flex-wrap gap-2">
+                        {% for cap in executor.capabilities %}
+                        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800">
+                            {{ cap }}
+                        </span>
+                        {% endfor %}
+                    </div>
+                </div>
+
+                <!-- Configuration Schema Preview -->
+                {% if executor.config_schema and executor.config_schema.properties %}
+                <div class="mb-4">
+                    <h4 class="text-xs font-medium text-gray-500 uppercase mb-2">Configuration</h4>
+                    <ul class="text-xs text-gray-600 space-y-1">
+                        {% for prop_name, prop in executor.config_schema.properties.items() %}
+                        {% if loop.index <= 4 %}
+                        <li class="flex items-center">
+                            <span class="font-mono bg-gray-100 px-1 rounded mr-2">{{ prop_name }}</span>
+                            <span class="text-gray-400 truncate">{{ prop.type }}</span>
+                        </li>
+                        {% endif %}
+                        {% endfor %}
+                        {% if executor.config_schema.properties|length > 4 %}
+                        <li class="text-gray-400">+ {{ executor.config_schema.properties|length - 4 }} more fields</li>
+                        {% endif %}
+                    </ul>
+                </div>
+                {% endif %}
+            </div>
+            <div class="px-6 py-4 bg-gray-50 border-t border-gray-200">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs text-gray-500">v{{ executor.version }}</span>
+                    <div class="flex space-x-3">
+                        <button
+                            onclick="showConfigModal('{{ executor.name }}', '{{ executor.config_schema|tojson|safe|replace(\"'\", \"\\'\") if executor.config_schema else '{}' }}')"
+                            class="text-sm text-indigo-600 hover:text-indigo-900 font-medium">
+                            Configure
+                        </button>
+                        <button
+                            onclick="testExecutor('{{ executor.name }}')"
+                            class="text-sm text-green-600 hover:text-green-900 font-medium">
+                            Test
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Health Status Summary -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h3 class="text-md font-medium text-gray-900 mb-4">Health Status</h3>
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-4">
+            {% for executor in executors %}
+            <div class="flex items-center space-x-2">
+                <span class="w-3 h-3 rounded-full {% if executor.healthy %}bg-green-500{% else %}bg-yellow-500{% endif %}"></span>
+                <span class="text-sm text-gray-700">{{ executor.display_name }}</span>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+
+    <!-- Documentation -->
+    <div class="bg-white shadow rounded-lg p-6">
+        <h3 class="text-md font-medium text-gray-900 mb-3">Executor Selection</h3>
+        <div class="prose prose-sm text-gray-600">
+            <p>The executor for a task is selected using this priority:</p>
+            <ol class="list-decimal list-inside mt-2 space-y-1">
+                <li><strong>Task-level</strong> - Explicit executor in task configuration</li>
+                <li><strong>Project-level</strong> - Default executor in project settings</li>
+                <li><strong>Global default</strong> - claude-cli is the default executor</li>
+            </ol>
+            <p class="mt-3">
+                To use a different executor, configure API keys for the desired backend
+                and select it in your project settings or specify it per-task in your PRD.
+            </p>
+        </div>
+    </div>
+</div>
+
+<!-- Configuration Modal -->
+<div id="configModal" class="fixed inset-0 bg-gray-600 bg-opacity-50 hidden items-center justify-center z-50">
+    <div class="bg-white rounded-lg shadow-xl max-w-lg w-full mx-4">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900" id="configModalTitle">Configure Executor</h3>
+        </div>
+        <div class="px-6 py-4" id="configModalBody">
+            <p class="text-gray-500">Loading configuration...</p>
+        </div>
+        <div class="px-6 py-4 bg-gray-50 border-t border-gray-200 flex justify-end space-x-3">
+            <button onclick="closeConfigModal()" class="px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-100 rounded-md">
+                Cancel
+            </button>
+            <button onclick="saveConfig()" class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 rounded-md">
+                Save Configuration
+            </button>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentExecutor = null;
+    let currentSchema = null;
+
+    function showConfigModal(executorName, schemaJson) {
+        currentExecutor = executorName;
+        try {
+            currentSchema = JSON.parse(schemaJson);
+        } catch (e) {
+            currentSchema = null;
+        }
+
+        document.getElementById('configModalTitle').textContent = 'Configure ' + executorName;
+
+        const body = document.getElementById('configModalBody');
+        // Clear existing content safely
+        while (body.firstChild) {
+            body.removeChild(body.firstChild);
+        }
+
+        if (currentSchema && currentSchema.properties) {
+            const form = document.createElement('form');
+            form.className = 'space-y-4';
+
+            for (const [name, prop] of Object.entries(currentSchema.properties)) {
+                const div = document.createElement('div');
+
+                const label = document.createElement('label');
+                label.className = 'block text-sm font-medium text-gray-700';
+                label.textContent = name;
+                if (currentSchema.required && currentSchema.required.includes(name)) {
+                    label.textContent += ' *';
+                }
+                div.appendChild(label);
+
+                if (prop.description) {
+                    const desc = document.createElement('p');
+                    desc.className = 'text-xs text-gray-500 mb-1';
+                    desc.textContent = prop.description;
+                    div.appendChild(desc);
+                }
+
+                let input;
+                if (prop.type === 'boolean') {
+                    input = document.createElement('input');
+                    input.type = 'checkbox';
+                    input.className = 'h-4 w-4 text-indigo-600 rounded border-gray-300';
+                    if (prop.default) input.checked = true;
+                } else if (prop.enum) {
+                    input = document.createElement('select');
+                    input.className = 'mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm';
+                    for (const opt of prop.enum) {
+                        const option = document.createElement('option');
+                        option.value = opt;
+                        option.textContent = opt;
+                        if (opt === prop.default) option.selected = true;
+                        input.appendChild(option);
+                    }
+                } else {
+                    input = document.createElement('input');
+                    input.type = prop.format === 'password' ? 'password' : 'text';
+                    input.className = 'mt-1 block w-full rounded-md border-gray-300 shadow-sm text-sm';
+                    input.placeholder = prop.default !== undefined ? String(prop.default) : '';
+                }
+                input.id = 'config-' + name;
+                input.name = name;
+                div.appendChild(input);
+
+                form.appendChild(div);
+            }
+
+            body.appendChild(form);
+        } else {
+            const msg = document.createElement('p');
+            msg.className = 'text-gray-500';
+            msg.textContent = 'No configuration options available.';
+            body.appendChild(msg);
+        }
+
+        document.getElementById('configModal').classList.remove('hidden');
+        document.getElementById('configModal').classList.add('flex');
+    }
+
+    function closeConfigModal() {
+        document.getElementById('configModal').classList.add('hidden');
+        document.getElementById('configModal').classList.remove('flex');
+        currentExecutor = null;
+        currentSchema = null;
+    }
+
+    function saveConfig() {
+        const config = {};
+        if (currentSchema && currentSchema.properties) {
+            for (const name of Object.keys(currentSchema.properties)) {
+                const input = document.getElementById('config-' + name);
+                if (input) {
+                    if (input.type === 'checkbox') {
+                        config[name] = input.checked;
+                    } else if (input.value) {
+                        config[name] = input.value;
+                    }
+                }
+            }
+        }
+
+        // Save to localStorage for now
+        localStorage.setItem('prdforge_executor_' + currentExecutor, JSON.stringify(config));
+        alert('Configuration saved for ' + currentExecutor);
+        closeConfigModal();
+    }
+
+    async function testExecutor(executorName) {
+        try {
+            // Get saved config
+            const savedConfig = localStorage.getItem('prdforge_executor_' + executorName);
+            const config = savedConfig ? JSON.parse(savedConfig) : {};
+
+            const response = await fetch('/api/executors/' + executorName + '/test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ config: config })
+            });
+
+            const result = await response.json();
+
+            if (result.success && result.healthy) {
+                alert(executorName + ' is working correctly!');
+            } else if (result.success) {
+                alert(executorName + ' responded but may not be fully configured.');
+            } else {
+                alert(executorName + ' test failed: ' + (result.error || 'Unknown error'));
+            }
+        } catch (error) {
+            alert('Failed to test ' + executorName + ': ' + error.message);
+        }
+    }
+
+    // Close modal on escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            closeConfigModal();
+        }
+    });
+</script>
+{% endblock %}

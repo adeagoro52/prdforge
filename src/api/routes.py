@@ -549,6 +549,145 @@ def get_skill(skill_name: str, project_path: Optional[str] = Query(None)):
     )
 
 
+# Executor Plugin Endpoints
+from src.executors import PluginManager, ExecutorSelection
+
+
+class ExecutorPluginResponse(BaseModel):
+    """Response model for an executor plugin."""
+
+    model_config = {"populate_by_name": True}
+
+    name: str
+    display_name: str
+    description: str
+    version: str
+    source: str
+    capabilities: list[str] = []
+    config_schema: Optional[dict] = Field(None, alias="schema")
+    error: Optional[str] = None
+
+
+class ExecutorHealthResponse(BaseModel):
+    """Response model for executor health check."""
+
+    name: str
+    healthy: bool
+    status: str
+    error: Optional[str] = None
+    info: Optional[dict] = None
+
+
+class ExecutorConfigUpdate(BaseModel):
+    """Request model for updating executor config."""
+
+    config: dict
+
+
+def get_plugin_manager() -> PluginManager:
+    """Get a plugin manager instance."""
+    manager = PluginManager()
+    manager.refresh()
+    return manager
+
+
+@api_router.get("/executors", response_model=list[ExecutorPluginResponse])
+def list_executors():
+    """List all available executor plugins."""
+    manager = get_plugin_manager()
+    plugins = manager.get_available_plugins()
+    return [
+        ExecutorPluginResponse(
+            name=p["name"],
+            display_name=p["display_name"],
+            description=p["description"],
+            version=p["version"],
+            source=p["source"],
+            capabilities=p.get("capabilities", []),
+            config_schema=p.get("schema"),
+            error=p.get("error"),
+        )
+        for p in plugins
+    ]
+
+
+@api_router.get("/executors/{executor_name}", response_model=ExecutorPluginResponse)
+def get_executor(executor_name: str):
+    """Get an executor plugin by name."""
+    manager = get_plugin_manager()
+    plugin = manager.discovery.get_plugin(executor_name)
+    if not plugin:
+        raise HTTPException(status_code=404, detail=f"Executor '{executor_name}' not found")
+
+    return ExecutorPluginResponse(
+        name=plugin.name,
+        display_name=plugin.display_name,
+        description=plugin.description,
+        version=plugin.version,
+        source=plugin.source_type,
+        capabilities=plugin.capabilities,
+        config_schema=plugin.schema.to_json_schema() if plugin.schema else None,
+        error=plugin.error,
+    )
+
+
+@api_router.get("/executors/{executor_name}/health", response_model=ExecutorHealthResponse)
+def check_executor_health(executor_name: str):
+    """Check health status of an executor."""
+    manager = get_plugin_manager()
+    health = manager.check_health(executor_name)
+    return ExecutorHealthResponse(
+        name=health["name"],
+        healthy=health["healthy"],
+        status=health["status"],
+        error=health.get("error"),
+        info=health.get("info"),
+    )
+
+
+@api_router.get("/executors/health/all", response_model=list[ExecutorHealthResponse])
+def check_all_executor_health():
+    """Check health status of all executors."""
+    manager = get_plugin_manager()
+    results = manager.check_all_health()
+    return [
+        ExecutorHealthResponse(
+            name=r["name"],
+            healthy=r["healthy"],
+            status=r["status"],
+            error=r.get("error"),
+            info=r.get("info"),
+        )
+        for r in results
+    ]
+
+
+@api_router.post("/executors/{executor_name}/test")
+def test_executor(executor_name: str, config: ExecutorConfigUpdate):
+    """Test an executor with the provided configuration."""
+    manager = get_plugin_manager()
+
+    try:
+        # Try to create an executor instance with the config
+        executor = manager.create_executor(executor_name, config=config.config)
+        healthy = executor.health_check()
+
+        return {
+            "success": True,
+            "name": executor_name,
+            "healthy": healthy,
+            "info": executor.get_info(),
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        return {
+            "success": False,
+            "name": executor_name,
+            "error": str(e),
+        }
+
+
 # HTML Pages
 @pages_router.get("/", response_class=HTMLResponse)
 def dashboard(request: Request, db: Database = Depends(get_db)):
@@ -669,5 +808,32 @@ def skills_page(request: Request):
             "request": request,
             "skills": skills,
             "skills_by_source": skills_by_source,
+        },
+    )
+
+
+@pages_router.get("/executors", response_class=HTMLResponse)
+def executors_page(request: Request):
+    """Executor plugins management page."""
+    templates = get_templates()
+
+    manager = get_plugin_manager()
+    plugins = manager.get_available_plugins()
+
+    # Add health status to each executor
+    executors_with_health = []
+    for p in plugins:
+        health = manager.check_health(p["name"])
+        executors_with_health.append({
+            **p,
+            "healthy": health.get("healthy", False),
+            "status": health.get("status", "unknown"),
+        })
+
+    return templates.TemplateResponse(
+        "executors.html",
+        {
+            "request": request,
+            "executors": executors_with_health,
         },
     )
