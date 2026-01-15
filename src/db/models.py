@@ -474,3 +474,201 @@ class AuditLog:
         """Set details from a dict."""
         import json
         self.details_json = json.dumps(value)
+
+
+class NotificationEventType(Enum):
+    """Type of notification event."""
+
+    # Run events
+    RUN_STARTED = "run_started"
+    RUN_COMPLETED = "run_completed"
+    RUN_FAILED = "run_failed"
+    RUN_PAUSED = "run_paused"
+    RUN_RESUMED = "run_resumed"
+    RUN_CANCELLED = "run_cancelled"
+
+    # Task events
+    TASK_STARTED = "task_started"
+    TASK_COMPLETED = "task_completed"
+    TASK_FAILED = "task_failed"
+
+    # Cost events
+    BUDGET_WARNING = "budget_warning"
+    BUDGET_EXCEEDED = "budget_exceeded"
+
+    # Quality gate events
+    QUALITY_GATES_PASSED = "quality_gates_passed"
+    QUALITY_GATES_FAILED = "quality_gates_failed"
+
+    # System events
+    SYSTEM_ERROR = "system_error"
+    WEBHOOK_FAILURE = "webhook_failure"
+
+
+class NotificationChannel(Enum):
+    """Notification delivery channel."""
+
+    IN_APP = "in_app"  # In-app notification (stored in DB)
+    WEBHOOK = "webhook"  # HTTP webhook
+    EMAIL = "email"  # Email notification (future)
+    SLACK = "slack"  # Slack integration (future)
+
+
+class NotificationPriority(Enum):
+    """Priority level for notifications."""
+
+    LOW = "low"
+    NORMAL = "normal"
+    HIGH = "high"
+    URGENT = "urgent"
+
+
+@dataclass
+class NotificationConfig:
+    """Notification configuration for a project.
+
+    Attributes:
+        id: Unique config identifier.
+        project_id: Foreign key to project.
+        events_json: JSON-encoded list of enabled event types.
+        channels_json: JSON-encoded list of enabled channels.
+        webhook_url: URL for webhook notifications.
+        webhook_secret: Secret for signing webhook payloads.
+        is_enabled: Whether notifications are enabled.
+        created_at: When the config was created.
+        updated_at: When the config was last updated.
+    """
+
+    id: int | None
+    project_id: int
+    events_json: str = "[]"
+    channels_json: str = '["in_app"]'
+    webhook_url: str | None = None
+    webhook_secret: str | None = None
+    is_enabled: bool = True
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+    @property
+    def events(self) -> list[str]:
+        """Get enabled events as a list."""
+        import json
+        try:
+            return json.loads(self.events_json)
+        except (json.JSONDecodeError, TypeError):
+            return []
+
+    @events.setter
+    def events(self, value: list[str]) -> None:
+        """Set events from a list."""
+        import json
+        self.events_json = json.dumps(value)
+
+    @property
+    def channels(self) -> list[str]:
+        """Get enabled channels as a list."""
+        import json
+        try:
+            return json.loads(self.channels_json)
+        except (json.JSONDecodeError, TypeError):
+            return ["in_app"]
+
+    @channels.setter
+    def channels(self, value: list[str]) -> None:
+        """Set channels from a list."""
+        import json
+        self.channels_json = json.dumps(value)
+
+
+@dataclass
+class Notification:
+    """A notification record.
+
+    Attributes:
+        id: Unique notification identifier.
+        user_id: Foreign key to user (recipient).
+        project_id: Foreign key to project (optional).
+        event_type: Type of event that triggered notification.
+        channel: Delivery channel used.
+        priority: Notification priority level.
+        title: Notification title.
+        message: Notification message body.
+        data_json: JSON-encoded additional data.
+        is_read: Whether notification has been read.
+        read_at: When notification was read.
+        created_at: When notification was created.
+    """
+
+    id: int | None
+    user_id: int
+    event_type: NotificationEventType
+    channel: NotificationChannel = NotificationChannel.IN_APP
+    priority: NotificationPriority = NotificationPriority.NORMAL
+    project_id: int | None = None
+    title: str = ""
+    message: str = ""
+    data_json: str = "{}"
+    is_read: bool = False
+    read_at: datetime | None = None
+    created_at: datetime | None = None
+
+    @property
+    def data(self) -> dict[str, Any]:
+        """Get data as a dict."""
+        import json
+        try:
+            return json.loads(self.data_json)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    @data.setter
+    def data(self, value: dict[str, Any]) -> None:
+        """Set data from a dict."""
+        import json
+        self.data_json = json.dumps(value)
+
+
+@dataclass
+class WebhookDelivery:
+    """Record of a webhook delivery attempt.
+
+    Attributes:
+        id: Unique delivery identifier.
+        notification_id: Foreign key to notification (optional).
+        project_id: Foreign key to project.
+        event_type: Type of event.
+        url: Webhook URL.
+        payload_json: JSON-encoded payload sent.
+        response_status: HTTP response status code.
+        response_body: Response body (truncated).
+        success: Whether delivery was successful.
+        attempt: Attempt number (1-based).
+        created_at: When delivery was attempted.
+    """
+
+    id: int | None
+    project_id: int
+    event_type: NotificationEventType
+    url: str
+    payload_json: str = "{}"
+    notification_id: int | None = None
+    response_status: int | None = None
+    response_body: str | None = None
+    success: bool = False
+    attempt: int = 1
+    created_at: datetime | None = None
+
+    @property
+    def payload(self) -> dict[str, Any]:
+        """Get payload as a dict."""
+        import json
+        try:
+            return json.loads(self.payload_json)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+    @payload.setter
+    def payload(self, value: dict[str, Any]) -> None:
+        """Set payload from a dict."""
+        import json
+        self.payload_json = json.dumps(value)

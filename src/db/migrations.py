@@ -258,6 +258,74 @@ MIGRATIONS = [
         CREATE INDEX IF NOT EXISTS idx_audit_logs_created ON audit_logs(created_at);
         """,
     ),
+    (
+        5,
+        "Add notification system tables",
+        """
+        -- Notification configuration per project
+        CREATE TABLE IF NOT EXISTS notification_configs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL UNIQUE,
+            events_json TEXT NOT NULL DEFAULT '[]',
+            channels_json TEXT NOT NULL DEFAULT '["in_app"]',
+            webhook_url TEXT,
+            webhook_secret TEXT,
+            is_enabled BOOLEAN NOT NULL DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_notification_configs_project ON notification_configs(project_id);
+        CREATE INDEX IF NOT EXISTS idx_notification_configs_enabled ON notification_configs(is_enabled);
+
+        -- Notifications table (in-app notifications)
+        CREATE TABLE IF NOT EXISTS notifications (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            project_id INTEGER,
+            event_type TEXT NOT NULL,
+            channel TEXT NOT NULL DEFAULT 'in_app',
+            priority TEXT NOT NULL DEFAULT 'normal',
+            title TEXT NOT NULL DEFAULT '',
+            message TEXT NOT NULL DEFAULT '',
+            data_json TEXT NOT NULL DEFAULT '{}',
+            is_read BOOLEAN NOT NULL DEFAULT 0,
+            read_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
+        CREATE INDEX IF NOT EXISTS idx_notifications_project ON notifications(project_id);
+        CREATE INDEX IF NOT EXISTS idx_notifications_event ON notifications(event_type);
+        CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(is_read);
+        CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at);
+
+        -- Webhook deliveries table (delivery history)
+        CREATE TABLE IF NOT EXISTS webhook_deliveries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            notification_id INTEGER,
+            event_type TEXT NOT NULL,
+            url TEXT NOT NULL,
+            payload_json TEXT NOT NULL DEFAULT '{}',
+            response_status INTEGER,
+            response_body TEXT,
+            success BOOLEAN NOT NULL DEFAULT 0,
+            attempt INTEGER NOT NULL DEFAULT 1,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+            FOREIGN KEY (notification_id) REFERENCES notifications(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_project ON webhook_deliveries(project_id);
+        CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_notification ON webhook_deliveries(notification_id);
+        CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_success ON webhook_deliveries(success);
+        CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_created ON webhook_deliveries(created_at);
+        """,
+    ),
 ]
 
 

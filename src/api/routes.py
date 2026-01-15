@@ -2101,3 +2101,338 @@ def settings_page(request: Request):
         "settings.html",
         {"request": request},
     )
+
+
+# Notification API Endpoints
+from src.engine.notification_service import (
+    NotificationService,
+    NotificationEvent,
+    get_notification_service,
+)
+from src.db.models import (
+    NotificationEventType,
+    NotificationChannel,
+    NotificationPriority,
+)
+
+
+class NotificationConfigCreate(BaseModel):
+    """Request model for creating/updating notification config."""
+
+    events: list[str] = []
+    channels: list[str] = ["in_app"]
+    webhook_url: Optional[str] = None
+    is_enabled: bool = True
+    generate_secret: bool = False
+
+
+class NotificationConfigResponse(BaseModel):
+    """Response model for notification config."""
+
+    id: int
+    project_id: int
+    events: list[str]
+    channels: list[str]
+    webhook_url: Optional[str]
+    has_secret: bool
+    is_enabled: bool
+
+
+class NotificationResponse(BaseModel):
+    """Response model for a notification."""
+
+    id: int
+    user_id: int
+    project_id: Optional[int]
+    event_type: str
+    channel: str
+    priority: str
+    title: str
+    message: str
+    data: dict
+    is_read: bool
+    read_at: Optional[datetime]
+    created_at: Optional[datetime]
+
+
+class WebhookDeliveryResponse(BaseModel):
+    """Response model for a webhook delivery."""
+
+    id: int
+    project_id: int
+    notification_id: Optional[int]
+    event_type: str
+    url: str
+    response_status: Optional[int]
+    success: bool
+    attempt: int
+    created_at: Optional[datetime]
+
+
+class WebhookStatsResponse(BaseModel):
+    """Response model for webhook statistics."""
+
+    total: int
+    successful: int
+    failed: int
+    success_rate: float
+
+
+def get_notification_service_instance(db: Database = Depends(get_db)) -> NotificationService:
+    """Get notification service instance."""
+    return get_notification_service(db)
+
+
+@api_router.get("/projects/{project_id}/notifications/config", response_model=Optional[NotificationConfigResponse])
+def get_notification_config(
+    project_id: int,
+    token: str = Query(...),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+    notification_service: NotificationService = Depends(get_notification_service_instance),
+):
+    """Get notification configuration for a project."""
+    current = auth_service.validate_session(token)
+    if not current:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    config = notification_service.get_config(project_id)
+    if not config:
+        return None
+
+    return NotificationConfigResponse(
+        id=config.id,
+        project_id=config.project_id,
+        events=config.events,
+        channels=config.channels,
+        webhook_url=config.webhook_url,
+        has_secret=config.webhook_secret is not None,
+        is_enabled=config.is_enabled,
+    )
+
+
+@api_router.put("/projects/{project_id}/notifications/config", response_model=NotificationConfigResponse)
+def set_notification_config(
+    project_id: int,
+    config_data: NotificationConfigCreate,
+    token: str = Query(...),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+    notification_service: NotificationService = Depends(get_notification_service_instance),
+):
+    """Set or update notification configuration for a project."""
+    current = auth_service.validate_session(token)
+    if not current or not current.can_write:
+        raise HTTPException(status_code=403, detail="Write access required")
+
+    config = notification_service.set_config(
+        project_id=project_id,
+        events=config_data.events,
+        channels=config_data.channels,
+        webhook_url=config_data.webhook_url,
+        is_enabled=config_data.is_enabled,
+        generate_secret=config_data.generate_secret,
+    )
+
+    return NotificationConfigResponse(
+        id=config.id,
+        project_id=config.project_id,
+        events=config.events,
+        channels=config.channels,
+        webhook_url=config.webhook_url,
+        has_secret=config.webhook_secret is not None,
+        is_enabled=config.is_enabled,
+    )
+
+
+@api_router.delete("/projects/{project_id}/notifications/config", status_code=204)
+def delete_notification_config(
+    project_id: int,
+    token: str = Query(...),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+    notification_service: NotificationService = Depends(get_notification_service_instance),
+):
+    """Delete notification configuration for a project."""
+    current = auth_service.validate_session(token)
+    if not current or not current.is_admin:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    if not notification_service.delete_config(project_id):
+        raise HTTPException(status_code=404, detail="Config not found")
+
+
+@api_router.get("/notifications", response_model=list[NotificationResponse])
+def get_notifications(
+    token: str = Query(...),
+    unread_only: bool = Query(False),
+    limit: int = Query(50, le=100),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+    notification_service: NotificationService = Depends(get_notification_service_instance),
+):
+    """Get notifications for the current user."""
+    current = auth_service.validate_session(token)
+    if not current:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    notifications = notification_service.get_notifications(
+        user_id=current.user.id,
+        unread_only=unread_only,
+        limit=limit,
+    )
+
+    return [
+        NotificationResponse(
+            id=n.id,
+            user_id=n.user_id,
+            project_id=n.project_id,
+            event_type=n.event_type.value,
+            channel=n.channel.value,
+            priority=n.priority.value,
+            title=n.title,
+            message=n.message,
+            data=n.data,
+            is_read=n.is_read,
+            read_at=n.read_at,
+            created_at=n.created_at,
+        )
+        for n in notifications
+    ]
+
+
+@api_router.get("/notifications/count")
+def get_notification_count(
+    token: str = Query(...),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+    notification_service: NotificationService = Depends(get_notification_service_instance),
+):
+    """Get unread notification count for the current user."""
+    current = auth_service.validate_session(token)
+    if not current:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    return {"unread_count": notification_service.get_unread_count(current.user.id)}
+
+
+@api_router.post("/notifications/{notification_id}/read", status_code=200)
+def mark_notification_read(
+    notification_id: int,
+    token: str = Query(...),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+    notification_service: NotificationService = Depends(get_notification_service_instance),
+):
+    """Mark a notification as read."""
+    current = auth_service.validate_session(token)
+    if not current:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    if not notification_service.mark_as_read(notification_id):
+        raise HTTPException(status_code=404, detail="Notification not found or already read")
+
+    return {"status": "read"}
+
+
+@api_router.post("/notifications/read-all", status_code=200)
+def mark_all_notifications_read(
+    token: str = Query(...),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+    notification_service: NotificationService = Depends(get_notification_service_instance),
+):
+    """Mark all notifications as read for the current user."""
+    current = auth_service.validate_session(token)
+    if not current:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    count = notification_service.mark_all_as_read(current.user.id)
+    return {"marked_read": count}
+
+
+@api_router.delete("/notifications/{notification_id}", status_code=200)
+def delete_notification(
+    notification_id: int,
+    token: str = Query(...),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+    notification_service: NotificationService = Depends(get_notification_service_instance),
+):
+    """Delete a notification."""
+    current = auth_service.validate_session(token)
+    if not current:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    if not notification_service.delete_notification(notification_id):
+        raise HTTPException(status_code=404, detail="Notification not found")
+
+    return {"status": "deleted"}
+
+
+@api_router.get("/projects/{project_id}/webhooks", response_model=list[WebhookDeliveryResponse])
+def get_webhook_deliveries(
+    project_id: int,
+    token: str = Query(...),
+    limit: int = Query(50, le=100),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+    notification_service: NotificationService = Depends(get_notification_service_instance),
+):
+    """Get webhook deliveries for a project."""
+    current = auth_service.validate_session(token)
+    if not current:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    deliveries = notification_service.get_webhook_deliveries(project_id, limit)
+
+    return [
+        WebhookDeliveryResponse(
+            id=d.id,
+            project_id=d.project_id,
+            notification_id=d.notification_id,
+            event_type=d.event_type.value,
+            url=d.url,
+            response_status=d.response_status,
+            success=d.success,
+            attempt=d.attempt,
+            created_at=d.created_at,
+        )
+        for d in deliveries
+    ]
+
+
+@api_router.get("/projects/{project_id}/webhooks/stats", response_model=WebhookStatsResponse)
+def get_webhook_stats(
+    project_id: int,
+    token: str = Query(...),
+    days: int = Query(7, ge=1, le=30),
+    auth_service: AuthService = Depends(get_auth_service_instance),
+    notification_service: NotificationService = Depends(get_notification_service_instance),
+):
+    """Get webhook delivery statistics for a project."""
+    current = auth_service.validate_session(token)
+    if not current:
+        raise HTTPException(status_code=401, detail="Invalid session")
+
+    stats = notification_service.get_webhook_stats(project_id, days)
+
+    return WebhookStatsResponse(
+        total=stats["total"],
+        successful=stats["successful"],
+        failed=stats["failed"],
+        success_rate=stats["success_rate"],
+    )
+
+
+@api_router.get("/notifications/event-types")
+def get_notification_event_types():
+    """Get available notification event types."""
+    return {
+        "event_types": [
+            {"value": e.value, "name": e.name}
+            for e in NotificationEventType
+        ]
+    }
+
+
+@api_router.get("/notifications/channels")
+def get_notification_channels():
+    """Get available notification channels."""
+    return {
+        "channels": [
+            {"value": c.value, "name": c.name}
+            for c in NotificationChannel
+        ]
+    }

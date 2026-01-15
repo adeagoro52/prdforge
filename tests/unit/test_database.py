@@ -49,7 +49,7 @@ class TestDatabase:
         db.initialize()
 
         version = db.get_schema_version()
-        assert version == 4  # Updated after adding team features migration
+        assert version == 5  # Updated after adding notification system migration
 
     def test_drop_all_tables(self, tmp_path):
         db_path = tmp_path / "test.db"

@@ -27,6 +27,11 @@ from .models import (
     CostBudget,
     CostRecord,
     LogEntry,
+    Notification,
+    NotificationChannel,
+    NotificationConfig,
+    NotificationEventType,
+    NotificationPriority,
     Project,
     ProjectHealth,
     Run,
@@ -35,6 +40,7 @@ from .models import (
     TaskExecution,
     User,
     UserRole,
+    WebhookDelivery,
 )
 from .repositories import (
     LogRepository,
@@ -47,6 +53,11 @@ from .user_repository import (
     AuditLogRepository,
     SessionRepository,
     UserRepository,
+)
+from .notification_repository import (
+    NotificationConfigRepository,
+    NotificationRepository,
+    WebhookDeliveryRepository,
 )
 
 __all__ = [
@@ -69,6 +80,12 @@ __all__ = [
     "Session",
     "AuditLog",
     "AuditAction",
+    "Notification",
+    "NotificationConfig",
+    "NotificationEventType",
+    "NotificationChannel",
+    "NotificationPriority",
+    "WebhookDelivery",
     # Repositories
     "ProjectRepository",
     "RunRepository",
@@ -78,4 +95,7 @@ __all__ = [
     "UserRepository",
     "SessionRepository",
     "AuditLogRepository",
+    "NotificationConfigRepository",
+    "NotificationRepository",
+    "WebhookDeliveryRepository",
 ]

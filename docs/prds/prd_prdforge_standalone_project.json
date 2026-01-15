@@ -809,7 +809,7 @@
         "Define notification events (run start/complete/fail)",
         "Store notification history"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "unit",
       "blocked_by": [
         "phase5-006"
