@@ -688,6 +688,406 @@ def test_executor(executor_name: str, config: ExecutorConfigUpdate):
         }
 
 
+# Cost Tracking Endpoints
+from src.engine.cost_tracker import CostTracker, get_cost_tracker
+
+
+class CostRecordCreate(BaseModel):
+    """Request model for creating a cost record."""
+
+    executor: str
+    model: str
+    prompt_tokens: int
+    completion_tokens: int
+    run_id: Optional[int] = None
+    task_execution_id: Optional[int] = None
+    metadata: Optional[dict] = None
+
+
+class CostRecordResponse(BaseModel):
+    """Response model for a cost record."""
+
+    id: int
+    project_id: int
+    run_id: Optional[int]
+    task_execution_id: Optional[int]
+    executor: str
+    model: str
+    prompt_tokens: int
+    completion_tokens: int
+    total_tokens: int
+    cost_usd: float
+    created_at: Optional[datetime]
+
+
+class CostBudgetCreate(BaseModel):
+    """Request model for creating/updating a budget."""
+
+    daily_budget_usd: Optional[float] = None
+    monthly_budget_usd: Optional[float] = None
+    total_budget_usd: Optional[float] = None
+    alert_threshold_percent: float = 80.0
+    is_hard_limit: bool = False
+
+
+class CostBudgetResponse(BaseModel):
+    """Response model for a cost budget."""
+
+    id: int
+    project_id: int
+    daily_budget_usd: Optional[float]
+    monthly_budget_usd: Optional[float]
+    total_budget_usd: Optional[float]
+    alert_threshold_percent: float
+    is_hard_limit: bool
+
+
+class BudgetStatusResponse(BaseModel):
+    """Response model for budget status."""
+
+    project_id: int
+    daily_spent: float
+    monthly_spent: float
+    total_spent: float
+    daily_utilization: Optional[float]
+    monthly_utilization: Optional[float]
+    total_utilization: Optional[float]
+    daily_exceeded: bool
+    monthly_exceeded: bool
+    total_exceeded: bool
+    threshold_reached: bool
+    is_blocked: bool
+    budget: Optional[CostBudgetResponse]
+
+
+class CostAlertResponse(BaseModel):
+    """Response model for a cost alert."""
+
+    id: int
+    project_id: int
+    alert_type: str
+    message: str
+    budget_amount_usd: Optional[float]
+    current_amount_usd: Optional[float]
+    threshold_percent: Optional[float]
+    acknowledged: bool
+    acknowledged_at: Optional[datetime]
+    created_at: Optional[datetime]
+
+
+class CostSummaryResponse(BaseModel):
+    """Response model for cost summary."""
+
+    project_id: int
+    total_cost_usd: float
+    breakdown_by_executor: dict
+    daily_costs: list[dict]
+    period: dict
+
+
+class GlobalCostSummaryResponse(BaseModel):
+    """Response model for global cost summary."""
+
+    total_cost_usd: float
+    total_tokens: int
+    total_records: int
+    project_count: int
+    by_project: list[dict]
+
+
+def get_cost_tracker_instance(db: Database = Depends(get_db)) -> CostTracker:
+    """Get cost tracker instance."""
+    return get_cost_tracker(db)
+
+
+@api_router.post("/projects/{project_id}/costs", response_model=CostRecordResponse, status_code=201)
+def create_cost_record(
+    project_id: int,
+    record: CostRecordCreate,
+    tracker: CostTracker = Depends(get_cost_tracker_instance),
+):
+    """Record a cost for a project."""
+    cost_record = tracker.record_cost(
+        project_id=project_id,
+        executor=record.executor,
+        model=record.model,
+        prompt_tokens=record.prompt_tokens,
+        completion_tokens=record.completion_tokens,
+        run_id=record.run_id,
+        task_execution_id=record.task_execution_id,
+        metadata=record.metadata,
+    )
+
+    return CostRecordResponse(
+        id=cost_record.id,
+        project_id=cost_record.project_id,
+        run_id=cost_record.run_id,
+        task_execution_id=cost_record.task_execution_id,
+        executor=cost_record.executor,
+        model=cost_record.model,
+        prompt_tokens=cost_record.prompt_tokens,
+        completion_tokens=cost_record.completion_tokens,
+        total_tokens=cost_record.total_tokens,
+        cost_usd=cost_record.cost_usd,
+        created_at=cost_record.created_at,
+    )
+
+
+@api_router.get("/projects/{project_id}/costs", response_model=list[CostRecordResponse])
+def get_project_costs(
+    project_id: int,
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    limit: int = Query(100, le=500),
+    tracker: CostTracker = Depends(get_cost_tracker_instance),
+):
+    """Get cost records for a project."""
+    records = tracker.repository.get_cost_records_for_project(
+        project_id=project_id,
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
+    )
+
+    return [
+        CostRecordResponse(
+            id=r.id,
+            project_id=r.project_id,
+            run_id=r.run_id,
+            task_execution_id=r.task_execution_id,
+            executor=r.executor,
+            model=r.model,
+            prompt_tokens=r.prompt_tokens,
+            completion_tokens=r.completion_tokens,
+            total_tokens=r.total_tokens,
+            cost_usd=r.cost_usd,
+            created_at=r.created_at,
+        )
+        for r in records
+    ]
+
+
+@api_router.get("/projects/{project_id}/costs/summary", response_model=CostSummaryResponse)
+def get_project_cost_summary(
+    project_id: int,
+    start_date: Optional[datetime] = Query(None),
+    end_date: Optional[datetime] = Query(None),
+    tracker: CostTracker = Depends(get_cost_tracker_instance),
+):
+    """Get cost summary for a project."""
+    summary = tracker.get_project_cost_summary(
+        project_id=project_id,
+        start_date=start_date,
+        end_date=end_date,
+    )
+
+    return CostSummaryResponse(
+        project_id=summary["project_id"],
+        total_cost_usd=summary["total_cost_usd"],
+        breakdown_by_executor=summary["breakdown_by_executor"],
+        daily_costs=summary["daily_costs"],
+        period=summary["period"],
+    )
+
+
+@api_router.get("/runs/{run_id}/costs")
+def get_run_cost_summary(
+    run_id: str,
+    db: Database = Depends(get_db),
+    tracker: CostTracker = Depends(get_cost_tracker_instance),
+):
+    """Get cost summary for a run."""
+    run_repo = RunRepository(db)
+    run = run_repo.get_by_run_id(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+
+    return tracker.get_run_cost_summary(run.id)
+
+
+@api_router.get("/projects/{project_id}/budget", response_model=Optional[CostBudgetResponse])
+def get_project_budget(
+    project_id: int,
+    tracker: CostTracker = Depends(get_cost_tracker_instance),
+):
+    """Get budget for a project."""
+    budget = tracker.repository.get_budget_for_project(project_id)
+    if not budget:
+        return None
+
+    return CostBudgetResponse(
+        id=budget.id,
+        project_id=budget.project_id,
+        daily_budget_usd=budget.daily_budget_usd,
+        monthly_budget_usd=budget.monthly_budget_usd,
+        total_budget_usd=budget.total_budget_usd,
+        alert_threshold_percent=budget.alert_threshold_percent,
+        is_hard_limit=budget.is_hard_limit,
+    )
+
+
+@api_router.put("/projects/{project_id}/budget", response_model=CostBudgetResponse)
+def set_project_budget(
+    project_id: int,
+    budget: CostBudgetCreate,
+    tracker: CostTracker = Depends(get_cost_tracker_instance),
+):
+    """Set or update budget for a project."""
+    saved = tracker.set_budget(
+        project_id=project_id,
+        daily_budget_usd=budget.daily_budget_usd,
+        monthly_budget_usd=budget.monthly_budget_usd,
+        total_budget_usd=budget.total_budget_usd,
+        alert_threshold_percent=budget.alert_threshold_percent,
+        is_hard_limit=budget.is_hard_limit,
+    )
+
+    return CostBudgetResponse(
+        id=saved.id,
+        project_id=saved.project_id,
+        daily_budget_usd=saved.daily_budget_usd,
+        monthly_budget_usd=saved.monthly_budget_usd,
+        total_budget_usd=saved.total_budget_usd,
+        alert_threshold_percent=saved.alert_threshold_percent,
+        is_hard_limit=saved.is_hard_limit,
+    )
+
+
+@api_router.delete("/projects/{project_id}/budget", status_code=204)
+def delete_project_budget(
+    project_id: int,
+    tracker: CostTracker = Depends(get_cost_tracker_instance),
+):
+    """Remove budget for a project."""
+    if not tracker.remove_budget(project_id):
+        raise HTTPException(status_code=404, detail="Budget not found")
+
+
+@api_router.get("/projects/{project_id}/budget/status", response_model=BudgetStatusResponse)
+def get_budget_status(
+    project_id: int,
+    tracker: CostTracker = Depends(get_cost_tracker_instance),
+):
+    """Get current budget status for a project."""
+    status = tracker.get_budget_status(project_id)
+
+    budget_response = None
+    if status.budget:
+        budget_response = CostBudgetResponse(
+            id=status.budget.id,
+            project_id=status.budget.project_id,
+            daily_budget_usd=status.budget.daily_budget_usd,
+            monthly_budget_usd=status.budget.monthly_budget_usd,
+            total_budget_usd=status.budget.total_budget_usd,
+            alert_threshold_percent=status.budget.alert_threshold_percent,
+            is_hard_limit=status.budget.is_hard_limit,
+        )
+
+    return BudgetStatusResponse(
+        project_id=status.project_id,
+        daily_spent=status.daily_spent,
+        monthly_spent=status.monthly_spent,
+        total_spent=status.total_spent,
+        daily_utilization=status.daily_utilization,
+        monthly_utilization=status.monthly_utilization,
+        total_utilization=status.total_utilization,
+        daily_exceeded=status.daily_exceeded,
+        monthly_exceeded=status.monthly_exceeded,
+        total_exceeded=status.total_exceeded,
+        threshold_reached=status.threshold_reached,
+        is_blocked=status.is_blocked,
+        budget=budget_response,
+    )
+
+
+@api_router.get("/projects/{project_id}/alerts", response_model=list[CostAlertResponse])
+def get_project_alerts(
+    project_id: int,
+    unacknowledged_only: bool = Query(False),
+    tracker: CostTracker = Depends(get_cost_tracker_instance),
+):
+    """Get cost alerts for a project."""
+    alerts = tracker.get_alerts(project_id, unacknowledged_only)
+
+    return [
+        CostAlertResponse(
+            id=a.id,
+            project_id=a.project_id,
+            alert_type=a.alert_type.value,
+            message=a.message,
+            budget_amount_usd=a.budget_amount_usd,
+            current_amount_usd=a.current_amount_usd,
+            threshold_percent=a.threshold_percent,
+            acknowledged=a.acknowledged,
+            acknowledged_at=a.acknowledged_at,
+            created_at=a.created_at,
+        )
+        for a in alerts
+    ]
+
+
+@api_router.post("/alerts/{alert_id}/acknowledge", status_code=200)
+def acknowledge_alert(
+    alert_id: int,
+    tracker: CostTracker = Depends(get_cost_tracker_instance),
+):
+    """Acknowledge a cost alert."""
+    if not tracker.acknowledge_alert(alert_id):
+        raise HTTPException(status_code=404, detail="Alert not found")
+    return {"status": "acknowledged"}
+
+
+@api_router.post("/projects/{project_id}/alerts/acknowledge-all", status_code=200)
+def acknowledge_all_project_alerts(
+    project_id: int,
+    tracker: CostTracker = Depends(get_cost_tracker_instance),
+):
+    """Acknowledge all alerts for a project."""
+    count = tracker.acknowledge_all_alerts(project_id)
+    return {"acknowledged": count}
+
+
+@api_router.get("/costs/summary", response_model=GlobalCostSummaryResponse)
+def get_global_cost_summary(
+    tracker: CostTracker = Depends(get_cost_tracker_instance),
+):
+    """Get global cost summary across all projects."""
+    summary = tracker.get_global_cost_summary()
+
+    return GlobalCostSummaryResponse(
+        total_cost_usd=summary["total_cost_usd"],
+        total_tokens=summary["total_tokens"],
+        total_records=summary["total_records"],
+        project_count=summary["project_count"],
+        by_project=summary["by_project"],
+    )
+
+
+@api_router.get("/costs/estimate")
+def estimate_cost(
+    executor: str,
+    model: str,
+    prompt_tokens: int,
+    completion_tokens: Optional[int] = None,
+    tracker: CostTracker = Depends(get_cost_tracker_instance),
+):
+    """Estimate cost for an execution before it happens."""
+    estimate = tracker.estimate_cost(
+        executor=executor,
+        model=model,
+        prompt_tokens=prompt_tokens,
+        estimated_completion_tokens=completion_tokens,
+    )
+
+    return {
+        "executor": estimate.executor,
+        "model": estimate.model,
+        "prompt_tokens": estimate.prompt_tokens,
+        "completion_tokens": estimate.completion_tokens,
+        "estimated_cost_usd": estimate.estimated_cost_usd,
+    }
+
+
 # HTML Pages
 @pages_router.get("/", response_class=HTMLResponse)
 def dashboard(request: Request, db: Database = Depends(get_db)):
@@ -837,3 +1237,351 @@ def executors_page(request: Request):
             "executors": executors_with_health,
         },
     )
+
+
+@pages_router.get("/costs", response_class=HTMLResponse)
+def costs_page(request: Request):
+    """Cost tracking dashboard page."""
+    templates = get_templates()
+
+    return templates.TemplateResponse(
+        "costs.html",
+        {
+            "request": request,
+        },
+    )
+
+
+# Git Branch API Endpoints
+from src.engine.git_manager import GitManager
+
+
+@api_router.get("/projects/{project_id}/branches")
+def list_project_branches(
+    project_id: int,
+    include_remote: bool = Query(False),
+    db: Database = Depends(get_db),
+):
+    """List branches for a project's repository."""
+    project_repo = ProjectRepository(db)
+    project = project_repo.get_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    try:
+        git_manager = GitManager(Path(project.path))
+        branches = git_manager.list_branches(include_remote=include_remote)
+        return {
+            "branches": branches,
+            "current_branch": git_manager.get_current_branch(),
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to list branches: {e}")
+
+
+@api_router.get("/projects/{project_id}/branches/graph")
+def get_branch_graph(
+    project_id: int,
+    count: int = Query(50, le=200),
+    db: Database = Depends(get_db),
+):
+    """Get branch graph data for visualization."""
+    project_repo = ProjectRepository(db)
+    project = project_repo.get_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    try:
+        git_manager = GitManager(Path(project.path))
+        return git_manager.get_branch_graph(count=count)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get branch graph: {e}")
+
+
+@api_router.get("/projects/{project_id}/branches/{branch_name}/commits")
+def get_branch_commits(
+    project_id: int,
+    branch_name: str,
+    count: int = Query(20, le=100),
+    base_branch: Optional[str] = Query(None),
+    db: Database = Depends(get_db),
+):
+    """Get commits for a specific branch."""
+    project_repo = ProjectRepository(db)
+    project = project_repo.get_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    try:
+        git_manager = GitManager(Path(project.path))
+        commits = git_manager.get_branch_commits(
+            branch=branch_name,
+            count=count,
+            since_branch=base_branch,
+        )
+        return {"branch": branch_name, "commits": commits}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get commits: {e}")
+
+
+@api_router.get("/projects/{project_id}/branches/compare")
+def compare_branches(
+    project_id: int,
+    base: str = Query(...),
+    head: str = Query(...),
+    db: Database = Depends(get_db),
+):
+    """Compare two branches."""
+    project_repo = ProjectRepository(db)
+    project = project_repo.get_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    try:
+        git_manager = GitManager(Path(project.path))
+        return git_manager.compare_branches(base, head)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to compare branches: {e}")
+
+
+@pages_router.get("/projects/{project_id}/branches", response_class=HTMLResponse)
+def branches_page(request: Request, project_id: int, db: Database = Depends(get_db)):
+    """Git branch visualization page."""
+    templates = get_templates()
+
+    project_repo = ProjectRepository(db)
+    project = project_repo.get_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    return templates.TemplateResponse(
+        "branches.html",
+        {
+            "request": request,
+            "project": project,
+        },
+    )
+
+
+# Quality Gates API Endpoints
+from src.engine.quality_gates import (
+    AcceptanceCriteria,
+    GateCheckResult,
+    GateResult,
+    GateType,
+    QualityGateChecker,
+    QualityGateConfig,
+    QualityGateManager,
+    BUILTIN_GATES,
+)
+
+
+class GateConfigCreate(BaseModel):
+    """Request model for creating a quality gate configuration."""
+
+    name: str
+    gate_type: str  # test, lint, typecheck, custom
+    command: Optional[str] = None
+    args: list[str] = []
+    enabled: bool = True
+    blocking: bool = True
+    retry_on_fail: bool = False
+    max_retries: int = 1
+    timeout: int = 300
+
+
+class QualityGateConfigUpdate(BaseModel):
+    """Request model for updating quality gate settings."""
+
+    gates: list[GateConfigCreate] = []
+    run_on_task_complete: bool = True
+    run_on_commit: bool = False
+    fail_task_on_failure: bool = True
+    auto_detect: bool = True
+
+
+class GateCheckResultResponse(BaseModel):
+    """Response model for a gate check result."""
+
+    gate_name: str
+    gate_type: str
+    result: str
+    output: str
+    error: Optional[str]
+    duration_seconds: float
+    timestamp: Optional[datetime]
+    exit_code: Optional[int]
+
+
+class GateSummaryResponse(BaseModel):
+    """Response model for gate run summary."""
+
+    total: int
+    passed: int
+    failed: int
+    skipped: int
+    errors: int
+    total_duration_seconds: float
+    all_passed: bool
+    results: list[dict]
+
+
+@api_router.get("/quality-gates/builtin")
+def list_builtin_gates():
+    """List all available built-in quality gates."""
+    return {
+        "gates": [
+            {
+                "name": name,
+                **config,
+            }
+            for name, config in BUILTIN_GATES.items()
+        ]
+    }
+
+
+@api_router.get("/projects/{project_id}/quality-gates/detect")
+def detect_project_gates(
+    project_id: int,
+    db: Database = Depends(get_db),
+):
+    """Auto-detect quality gates based on project structure."""
+    project_repo = ProjectRepository(db)
+    project = project_repo.get_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    try:
+        checker = QualityGateChecker(Path(project.path))
+        detected = checker.detect_project_gates()
+        return {
+            "detected_gates": [gate.to_dict() for gate in detected],
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to detect gates: {e}")
+
+
+@api_router.post("/projects/{project_id}/quality-gates/run", response_model=GateSummaryResponse)
+def run_quality_gates(
+    project_id: int,
+    gates: Optional[list[GateConfigCreate]] = None,
+    stop_on_failure: bool = Query(True),
+    db: Database = Depends(get_db),
+):
+    """Run quality gates for a project."""
+    project_repo = ProjectRepository(db)
+    project = project_repo.get_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    try:
+        # Build gate config
+        config = QualityGateConfig(auto_detect=gates is None)
+        if gates:
+            for g in gates:
+                config.gates.append(AcceptanceCriteria(
+                    name=g.name,
+                    gate_type=GateType(g.gate_type),
+                    command=g.command,
+                    args=g.args,
+                    enabled=g.enabled,
+                    blocking=g.blocking,
+                    retry_on_fail=g.retry_on_fail,
+                    max_retries=g.max_retries,
+                    timeout=g.timeout,
+                ))
+
+        manager = QualityGateManager(config, Path(project.path))
+        passed, results = manager.run_gates(stop_on_failure=stop_on_failure)
+
+        summary = manager.get_summary(results)
+        return GateSummaryResponse(**summary)
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to run gates: {e}")
+
+
+@api_router.post("/projects/{project_id}/quality-gates/check/{gate_name}")
+def run_single_gate(
+    project_id: int,
+    gate_name: str,
+    db: Database = Depends(get_db),
+):
+    """Run a specific quality gate by name."""
+    project_repo = ProjectRepository(db)
+    project = project_repo.get_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    # Check if it's a builtin gate
+    if gate_name not in BUILTIN_GATES:
+        raise HTTPException(status_code=404, detail=f"Built-in gate '{gate_name}' not found")
+
+    try:
+        gate = AcceptanceCriteria.from_dict(BUILTIN_GATES[gate_name])
+        checker = QualityGateChecker(Path(project.path))
+        result = checker.check(gate)
+
+        return {
+            "gate_name": result.gate.name,
+            "gate_type": result.gate.gate_type.value,
+            "result": result.result.value,
+            "output": result.output,
+            "error": result.error,
+            "duration_seconds": result.duration_seconds,
+            "exit_code": result.exit_code,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to run gate: {e}")
+
+
+@api_router.post("/projects/{project_id}/quality-gates/custom")
+def run_custom_gate(
+    project_id: int,
+    gate: GateConfigCreate,
+    db: Database = Depends(get_db),
+):
+    """Run a custom quality gate with specified command."""
+    project_repo = ProjectRepository(db)
+    project = project_repo.get_by_id(project_id)
+    if not project:
+        raise HTTPException(status_code=404, detail="Project not found")
+
+    if not gate.command:
+        raise HTTPException(status_code=400, detail="Custom gates require a command")
+
+    try:
+        criteria = AcceptanceCriteria(
+            name=gate.name,
+            gate_type=GateType(gate.gate_type),
+            command=gate.command,
+            args=gate.args,
+            enabled=gate.enabled,
+            blocking=gate.blocking,
+            timeout=gate.timeout,
+        )
+
+        checker = QualityGateChecker(Path(project.path))
+        result = checker.check(criteria)
+
+        return {
+            "gate_name": result.gate.name,
+            "gate_type": result.gate.gate_type.value,
+            "result": result.result.value,
+            "output": result.output,
+            "error": result.error,
+            "duration_seconds": result.duration_seconds,
+            "exit_code": result.exit_code,
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to run gate: {e}")

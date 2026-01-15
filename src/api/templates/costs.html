@@ -1,0 +1,660 @@
+{% extends "base.html" %}
+
+{% block title %}Cost Tracking - PRDForge{% endblock %}
+
+{% block header %}Cost Tracking{% endblock %}
+
+{% block content %}
+<div x-data="costDashboard()" x-init="init()" class="space-y-6">
+    <!-- Summary Cards -->
+    <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <!-- Total Cost -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <svg class="h-8 w-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Total Cost</p>
+                    <p class="text-2xl font-semibold text-gray-900" x-text="'$' + globalSummary.total_cost_usd.toFixed(4)">$0.00</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Total Tokens -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <svg class="h-8 w-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Total Tokens</p>
+                    <p class="text-2xl font-semibold text-gray-900" x-text="formatNumber(globalSummary.total_tokens)">0</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Total Records -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <svg class="h-8 w-8 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Total Executions</p>
+                    <p class="text-2xl font-semibold text-gray-900" x-text="globalSummary.total_records">0</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Projects Tracked -->
+        <div class="bg-white rounded-lg shadow p-6">
+            <div class="flex items-center">
+                <div class="flex-shrink-0">
+                    <svg class="h-8 w-8 text-yellow-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"></path>
+                    </svg>
+                </div>
+                <div class="ml-4">
+                    <p class="text-sm font-medium text-gray-500">Projects</p>
+                    <p class="text-2xl font-semibold text-gray-900" x-text="globalSummary.project_count">0</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alerts Section -->
+    <template x-if="alerts.length > 0">
+        <div class="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-lg">
+            <div class="flex justify-between items-center mb-2">
+                <div class="flex items-center">
+                    <svg class="h-5 w-5 text-yellow-400 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                    <h3 class="text-sm font-medium text-yellow-800">
+                        <span x-text="alerts.length"></span> Active Alert<span x-show="alerts.length > 1">s</span>
+                    </h3>
+                </div>
+                <button @click="acknowledgeAllAlerts()" class="text-sm text-yellow-700 hover:text-yellow-900 underline">
+                    Acknowledge All
+                </button>
+            </div>
+            <ul class="space-y-1">
+                <template x-for="alert in alerts.slice(0, 5)" :key="alert.id">
+                    <li class="flex justify-between items-center text-sm text-yellow-700">
+                        <span x-text="alert.message"></span>
+                        <button @click="acknowledgeAlert(alert.id)" class="text-yellow-600 hover:text-yellow-800">
+                            Dismiss
+                        </button>
+                    </li>
+                </template>
+            </ul>
+        </div>
+    </template>
+
+    <!-- Project Selector and Time Range -->
+    <div class="bg-white rounded-lg shadow p-4">
+        <div class="flex flex-wrap gap-4 items-center">
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Project</label>
+                <select x-model="selectedProjectId" @change="loadProjectData()" class="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <option value="">All Projects</option>
+                    <template x-for="project in projects" :key="project.id">
+                        <option :value="project.id" x-text="project.name"></option>
+                    </template>
+                </select>
+            </div>
+            <div>
+                <label class="block text-sm font-medium text-gray-700 mb-1">Time Range</label>
+                <select x-model="timeRange" @change="loadProjectData()" class="rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                    <option value="7">Last 7 days</option>
+                    <option value="30">Last 30 days</option>
+                    <option value="90">Last 90 days</option>
+                    <option value="all">All time</option>
+                </select>
+            </div>
+            <div class="ml-auto">
+                <button @click="exportCosts()" class="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50">
+                    <svg class="h-4 w-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                    </svg>
+                    Export CSV
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cost by Project (when all projects selected) -->
+    <template x-if="!selectedProjectId && globalSummary.by_project.length > 0">
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200">
+                <h3 class="text-lg font-medium text-gray-900">Cost by Project</h3>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Project</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Cost</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Total Tokens</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Executions</th>
+                            <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Avg Cost/Exec</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <template x-for="item in globalSummary.by_project" :key="item.project_id">
+                            <tr class="hover:bg-gray-50 cursor-pointer" @click="selectedProjectId = item.project_id; loadProjectData()">
+                                <td class="px-6 py-4 whitespace-nowrap">
+                                    <span class="text-sm font-medium text-gray-900" x-text="getProjectName(item.project_id)"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right">
+                                    <span class="text-sm text-gray-900" x-text="'$' + item.total_cost.toFixed(4)"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right">
+                                    <span class="text-sm text-gray-500" x-text="formatNumber(item.total_tokens)"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right">
+                                    <span class="text-sm text-gray-500" x-text="item.record_count"></span>
+                                </td>
+                                <td class="px-6 py-4 whitespace-nowrap text-right">
+                                    <span class="text-sm text-gray-500" x-text="'$' + (item.record_count > 0 ? (item.total_cost / item.record_count).toFixed(6) : '0.00')"></span>
+                                </td>
+                            </tr>
+                        </template>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </template>
+
+    <!-- Project-Specific View -->
+    <template x-if="selectedProjectId">
+        <div class="space-y-6">
+            <!-- Budget Status -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-lg font-medium text-gray-900">Budget Status</h3>
+                    <button @click="showBudgetModal = true" class="text-sm text-indigo-600 hover:text-indigo-800">
+                        <span x-text="budgetStatus.budget ? 'Edit Budget' : 'Set Budget'"></span>
+                    </button>
+                </div>
+
+                <template x-if="budgetStatus.budget">
+                    <div class="space-y-4">
+                        <!-- Daily Budget -->
+                        <template x-if="budgetStatus.budget.daily_budget_usd">
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="text-gray-500">Daily Budget</span>
+                                    <span class="font-medium" x-text="'$' + budgetStatus.daily_spent.toFixed(4) + ' / $' + budgetStatus.budget.daily_budget_usd.toFixed(2)"></span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                    <div class="h-2.5 rounded-full"
+                                        :class="{
+                                            'bg-green-500': budgetStatus.daily_utilization < 50,
+                                            'bg-yellow-500': budgetStatus.daily_utilization >= 50 && budgetStatus.daily_utilization < 80,
+                                            'bg-red-500': budgetStatus.daily_utilization >= 80
+                                        }"
+                                        :style="'width: ' + Math.min(budgetStatus.daily_utilization || 0, 100) + '%'"></div>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- Monthly Budget -->
+                        <template x-if="budgetStatus.budget.monthly_budget_usd">
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="text-gray-500">Monthly Budget</span>
+                                    <span class="font-medium" x-text="'$' + budgetStatus.monthly_spent.toFixed(4) + ' / $' + budgetStatus.budget.monthly_budget_usd.toFixed(2)"></span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                    <div class="h-2.5 rounded-full"
+                                        :class="{
+                                            'bg-green-500': budgetStatus.monthly_utilization < 50,
+                                            'bg-yellow-500': budgetStatus.monthly_utilization >= 50 && budgetStatus.monthly_utilization < 80,
+                                            'bg-red-500': budgetStatus.monthly_utilization >= 80
+                                        }"
+                                        :style="'width: ' + Math.min(budgetStatus.monthly_utilization || 0, 100) + '%'"></div>
+                                </div>
+                            </div>
+                        </template>
+
+                        <!-- Total Budget -->
+                        <template x-if="budgetStatus.budget.total_budget_usd">
+                            <div>
+                                <div class="flex justify-between text-sm mb-1">
+                                    <span class="text-gray-500">Total Budget</span>
+                                    <span class="font-medium" x-text="'$' + budgetStatus.total_spent.toFixed(4) + ' / $' + budgetStatus.budget.total_budget_usd.toFixed(2)"></span>
+                                </div>
+                                <div class="w-full bg-gray-200 rounded-full h-2.5">
+                                    <div class="h-2.5 rounded-full"
+                                        :class="{
+                                            'bg-green-500': budgetStatus.total_utilization < 50,
+                                            'bg-yellow-500': budgetStatus.total_utilization >= 50 && budgetStatus.total_utilization < 80,
+                                            'bg-red-500': budgetStatus.total_utilization >= 80
+                                        }"
+                                        :style="'width: ' + Math.min(budgetStatus.total_utilization || 0, 100) + '%'"></div>
+                                </div>
+                            </div>
+                        </template>
+
+                        <div class="flex items-center text-sm text-gray-500">
+                            <template x-if="budgetStatus.budget.is_hard_limit">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-red-100 text-red-800">
+                                    Hard Limit
+                                </span>
+                            </template>
+                            <template x-if="!budgetStatus.budget.is_hard_limit">
+                                <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-yellow-100 text-yellow-800">
+                                    Soft Limit
+                                </span>
+                            </template>
+                            <span class="ml-2" x-text="'Alert at ' + budgetStatus.budget.alert_threshold_percent + '%'"></span>
+                        </div>
+                    </div>
+                </template>
+
+                <template x-if="!budgetStatus.budget">
+                    <div class="text-center py-4">
+                        <p class="text-gray-500 text-sm">No budget configured</p>
+                        <p class="text-gray-400 text-xs mt-1">Click "Set Budget" to configure spending limits</p>
+                    </div>
+                </template>
+            </div>
+
+            <!-- Cost by Executor -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">Cost by Executor</h3>
+                </div>
+                <template x-if="Object.keys(projectSummary.breakdown_by_executor).length > 0">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Executor</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Cost</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tokens</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Executions</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <template x-for="[executor, data] in Object.entries(projectSummary.breakdown_by_executor)" :key="executor">
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="text-sm font-medium text-gray-900 capitalize" x-text="executor"></span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                                            <span class="text-sm text-gray-900" x-text="'$' + data.total_cost.toFixed(4)"></span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                                            <span class="text-sm text-gray-500" x-text="formatNumber(data.total_tokens)"></span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                                            <span class="text-sm text-gray-500" x-text="data.record_count"></span>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </template>
+                <template x-if="Object.keys(projectSummary.breakdown_by_executor).length === 0">
+                    <div class="p-6 text-center text-gray-500">
+                        No cost data available for this project
+                    </div>
+                </template>
+            </div>
+
+            <!-- Daily Cost Trend -->
+            <div class="bg-white rounded-lg shadow p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Daily Cost Trend</h3>
+                <template x-if="projectSummary.daily_costs.length > 0">
+                    <div class="h-48 flex items-end space-x-1">
+                        <template x-for="day in projectSummary.daily_costs" :key="day.date">
+                            <div class="flex-1 flex flex-col items-center">
+                                <div class="w-full bg-indigo-500 rounded-t"
+                                    :style="'height: ' + (day.cost / maxDailyCost * 150) + 'px'"
+                                    :title="'$' + day.cost.toFixed(4) + ' on ' + day.date"></div>
+                                <span class="text-xs text-gray-400 mt-1 transform -rotate-45 origin-top-left" x-text="day.date.slice(5)"></span>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+                <template x-if="projectSummary.daily_costs.length === 0">
+                    <div class="h-48 flex items-center justify-center text-gray-500">
+                        No daily cost data available
+                    </div>
+                </template>
+            </div>
+
+            <!-- Recent Cost Records -->
+            <div class="bg-white rounded-lg shadow">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-medium text-gray-900">Recent Executions</h3>
+                </div>
+                <template x-if="recentRecords.length > 0">
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full divide-y divide-gray-200">
+                            <thead class="bg-gray-50">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Time</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Executor</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Model</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Tokens</th>
+                                    <th class="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Cost</th>
+                                </tr>
+                            </thead>
+                            <tbody class="bg-white divide-y divide-gray-200">
+                                <template x-for="record in recentRecords" :key="record.id">
+                                    <tr>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="text-sm text-gray-500" x-text="formatTime(record.created_at)"></span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="text-sm font-medium text-gray-900 capitalize" x-text="record.executor"></span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap">
+                                            <span class="text-sm text-gray-500" x-text="record.model"></span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                                            <span class="text-sm text-gray-500" x-text="formatNumber(record.total_tokens)"></span>
+                                        </td>
+                                        <td class="px-6 py-4 whitespace-nowrap text-right">
+                                            <span class="text-sm text-gray-900" x-text="'$' + record.cost_usd.toFixed(6)"></span>
+                                        </td>
+                                    </tr>
+                                </template>
+                            </tbody>
+                        </table>
+                    </div>
+                </template>
+                <template x-if="recentRecords.length === 0">
+                    <div class="p-6 text-center text-gray-500">
+                        No recent executions
+                    </div>
+                </template>
+            </div>
+        </div>
+    </template>
+
+    <!-- Budget Configuration Modal -->
+    <div x-show="showBudgetModal" class="fixed inset-0 z-50 overflow-y-auto" style="display: none;">
+        <div class="flex items-center justify-center min-h-screen px-4">
+            <div class="fixed inset-0 bg-gray-500 bg-opacity-75" @click="showBudgetModal = false"></div>
+            <div class="relative bg-white rounded-lg shadow-xl max-w-md w-full p-6">
+                <h3 class="text-lg font-medium text-gray-900 mb-4">Configure Budget</h3>
+                <form @submit.prevent="saveBudget()">
+                    <div class="space-y-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Daily Budget (USD)</label>
+                            <input type="number" step="0.01" min="0" x-model="budgetForm.daily_budget_usd"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                placeholder="e.g., 10.00">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Monthly Budget (USD)</label>
+                            <input type="number" step="0.01" min="0" x-model="budgetForm.monthly_budget_usd"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                placeholder="e.g., 100.00">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Total Budget (USD)</label>
+                            <input type="number" step="0.01" min="0" x-model="budgetForm.total_budget_usd"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
+                                placeholder="e.g., 1000.00">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Alert Threshold (%)</label>
+                            <input type="number" step="1" min="0" max="100" x-model="budgetForm.alert_threshold_percent"
+                                class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" x-model="budgetForm.is_hard_limit" id="hard_limit"
+                                class="h-4 w-4 text-indigo-600 focus:ring-indigo-500 border-gray-300 rounded">
+                            <label for="hard_limit" class="ml-2 block text-sm text-gray-900">
+                                Hard limit (block executions when exceeded)
+                            </label>
+                        </div>
+                    </div>
+                    <div class="mt-6 flex justify-end space-x-3">
+                        <button type="button" @click="showBudgetModal = false"
+                            class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50">
+                            Cancel
+                        </button>
+                        <button type="button" @click="deleteBudget()" x-show="budgetStatus.budget"
+                            class="px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-300 rounded-md hover:bg-red-100">
+                            Remove Budget
+                        </button>
+                        <button type="submit"
+                            class="px-4 py-2 text-sm font-medium text-white bg-indigo-600 border border-transparent rounded-md hover:bg-indigo-700">
+                            Save Budget
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+function costDashboard() {
+    return {
+        projects: [],
+        selectedProjectId: '',
+        timeRange: '30',
+        globalSummary: {
+            total_cost_usd: 0,
+            total_tokens: 0,
+            total_records: 0,
+            project_count: 0,
+            by_project: []
+        },
+        projectSummary: {
+            total_cost_usd: 0,
+            breakdown_by_executor: {},
+            daily_costs: []
+        },
+        budgetStatus: {
+            budget: null,
+            daily_spent: 0,
+            monthly_spent: 0,
+            total_spent: 0
+        },
+        recentRecords: [],
+        alerts: [],
+        showBudgetModal: false,
+        budgetForm: {
+            daily_budget_usd: null,
+            monthly_budget_usd: null,
+            total_budget_usd: null,
+            alert_threshold_percent: 80,
+            is_hard_limit: false
+        },
+
+        async init() {
+            await this.loadProjects();
+            await this.loadGlobalSummary();
+        },
+
+        async loadProjects() {
+            try {
+                const response = await fetch('/api/projects');
+                this.projects = await response.json();
+            } catch (error) {
+                console.error('Failed to load projects:', error);
+            }
+        },
+
+        async loadGlobalSummary() {
+            try {
+                const response = await fetch('/api/costs/summary');
+                this.globalSummary = await response.json();
+            } catch (error) {
+                console.error('Failed to load global summary:', error);
+            }
+        },
+
+        async loadProjectData() {
+            if (!this.selectedProjectId) {
+                await this.loadGlobalSummary();
+                return;
+            }
+
+            try {
+                // Load project cost summary
+                const summaryResponse = await fetch(
+                    '/api/projects/' + this.selectedProjectId + '/costs/summary'
+                );
+                this.projectSummary = await summaryResponse.json();
+
+                // Load budget status
+                const budgetResponse = await fetch(
+                    '/api/projects/' + this.selectedProjectId + '/budget/status'
+                );
+                this.budgetStatus = await budgetResponse.json();
+
+                // Update budget form
+                if (this.budgetStatus.budget) {
+                    this.budgetForm = {
+                        daily_budget_usd: this.budgetStatus.budget.daily_budget_usd,
+                        monthly_budget_usd: this.budgetStatus.budget.monthly_budget_usd,
+                        total_budget_usd: this.budgetStatus.budget.total_budget_usd,
+                        alert_threshold_percent: this.budgetStatus.budget.alert_threshold_percent,
+                        is_hard_limit: this.budgetStatus.budget.is_hard_limit
+                    };
+                }
+
+                // Load recent records
+                const recordsResponse = await fetch(
+                    '/api/projects/' + this.selectedProjectId + '/costs?limit=20'
+                );
+                this.recentRecords = await recordsResponse.json();
+
+                // Load alerts
+                const alertsResponse = await fetch(
+                    '/api/projects/' + this.selectedProjectId + '/alerts?unacknowledged_only=true'
+                );
+                this.alerts = await alertsResponse.json();
+            } catch (error) {
+                console.error('Failed to load project data:', error);
+            }
+        },
+
+        async saveBudget() {
+            try {
+                const response = await fetch(
+                    '/api/projects/' + this.selectedProjectId + '/budget',
+                    {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify(this.budgetForm)
+                    }
+                );
+
+                if (response.ok) {
+                    this.showBudgetModal = false;
+                    await this.loadProjectData();
+                }
+            } catch (error) {
+                console.error('Failed to save budget:', error);
+            }
+        },
+
+        async deleteBudget() {
+            if (!confirm('Are you sure you want to remove the budget?')) return;
+
+            try {
+                await fetch('/api/projects/' + this.selectedProjectId + '/budget', {
+                    method: 'DELETE'
+                });
+                this.showBudgetModal = false;
+                await this.loadProjectData();
+            } catch (error) {
+                console.error('Failed to delete budget:', error);
+            }
+        },
+
+        async acknowledgeAlert(alertId) {
+            try {
+                await fetch('/api/alerts/' + alertId + '/acknowledge', {
+                    method: 'POST'
+                });
+                this.alerts = this.alerts.filter(a => a.id !== alertId);
+            } catch (error) {
+                console.error('Failed to acknowledge alert:', error);
+            }
+        },
+
+        async acknowledgeAllAlerts() {
+            if (!this.selectedProjectId) return;
+
+            try {
+                await fetch(
+                    '/api/projects/' + this.selectedProjectId + '/alerts/acknowledge-all',
+                    {method: 'POST'}
+                );
+                this.alerts = [];
+            } catch (error) {
+                console.error('Failed to acknowledge alerts:', error);
+            }
+        },
+
+        exportCosts() {
+            // Create CSV export
+            let csv = 'Date,Executor,Model,Prompt Tokens,Completion Tokens,Total Tokens,Cost USD\n';
+            for (const record of this.recentRecords) {
+                csv += [
+                    record.created_at,
+                    record.executor,
+                    record.model,
+                    record.prompt_tokens,
+                    record.completion_tokens,
+                    record.total_tokens,
+                    record.cost_usd
+                ].join(',') + '\n';
+            }
+
+            const blob = new Blob([csv], {type: 'text/csv'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'prdforge-costs.csv';
+            a.click();
+            URL.revokeObjectURL(url);
+        },
+
+        getProjectName(projectId) {
+            const project = this.projects.find(p => p.id === projectId);
+            return project ? project.name : 'Unknown';
+        },
+
+        get maxDailyCost() {
+            if (this.projectSummary.daily_costs.length === 0) return 1;
+            return Math.max(...this.projectSummary.daily_costs.map(d => d.cost)) || 1;
+        },
+
+        formatNumber(num) {
+            if (num >= 1000000) {
+                return (num / 1000000).toFixed(2) + 'M';
+            } else if (num >= 1000) {
+                return (num / 1000).toFixed(1) + 'K';
+            }
+            return num.toString();
+        },
+
+        formatTime(timestamp) {
+            if (!timestamp) return '';
+            const date = new Date(timestamp);
+            return date.toLocaleString();
+        }
+    };
+}
+</script>
+{% endblock %}

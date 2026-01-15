@@ -215,3 +215,112 @@ class LogEntry:
     message: str = ""
     context_json: str = "{}"
     timestamp: datetime | None = None
+
+
+class AlertType(Enum):
+    """Type of cost alert."""
+
+    DAILY_THRESHOLD = "daily_threshold"
+    MONTHLY_THRESHOLD = "monthly_threshold"
+    TOTAL_THRESHOLD = "total_threshold"
+    DAILY_EXCEEDED = "daily_exceeded"
+    MONTHLY_EXCEEDED = "monthly_exceeded"
+    TOTAL_EXCEEDED = "total_exceeded"
+
+
+@dataclass
+class CostRecord:
+    """A cost record for a task execution.
+
+    Attributes:
+        id: Unique record identifier.
+        project_id: Foreign key to project.
+        run_id: Optional foreign key to run.
+        task_execution_id: Optional foreign key to task execution.
+        executor: Executor name used.
+        model: Model identifier used.
+        prompt_tokens: Number of input tokens.
+        completion_tokens: Number of output tokens.
+        total_tokens: Total tokens (prompt + completion).
+        cost_usd: Estimated cost in USD.
+        created_at: When the record was created.
+        metadata_json: JSON-encoded additional metadata.
+    """
+
+    id: int | None
+    project_id: int
+    executor: str
+    model: str
+    run_id: int | None = None
+    task_execution_id: int | None = None
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    cost_usd: float = 0.0
+    created_at: datetime | None = None
+    metadata_json: str = "{}"
+
+    @property
+    def metadata(self) -> dict[str, Any]:
+        """Get metadata as a dict."""
+        import json
+        try:
+            return json.loads(self.metadata_json)
+        except (json.JSONDecodeError, TypeError):
+            return {}
+
+
+@dataclass
+class CostBudget:
+    """A cost budget for a project.
+
+    Attributes:
+        id: Unique budget identifier.
+        project_id: Foreign key to project.
+        daily_budget_usd: Daily budget limit.
+        monthly_budget_usd: Monthly budget limit.
+        total_budget_usd: Total (all-time) budget limit.
+        alert_threshold_percent: Threshold for triggering alerts (0-100).
+        is_hard_limit: Whether to block execution when budget exceeded.
+        created_at: When the budget was created.
+        updated_at: When the budget was last updated.
+    """
+
+    id: int | None
+    project_id: int
+    daily_budget_usd: float | None = None
+    monthly_budget_usd: float | None = None
+    total_budget_usd: float | None = None
+    alert_threshold_percent: float = 80.0
+    is_hard_limit: bool = False
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+
+
+@dataclass
+class CostAlert:
+    """A cost alert triggered by budget threshold.
+
+    Attributes:
+        id: Unique alert identifier.
+        project_id: Foreign key to project.
+        alert_type: Type of alert.
+        message: Alert message.
+        budget_amount_usd: Budget amount that triggered alert.
+        current_amount_usd: Current spending amount.
+        threshold_percent: Threshold percentage reached.
+        acknowledged: Whether alert has been acknowledged.
+        acknowledged_at: When the alert was acknowledged.
+        created_at: When the alert was created.
+    """
+
+    id: int | None
+    project_id: int
+    alert_type: AlertType
+    message: str
+    budget_amount_usd: float | None = None
+    current_amount_usd: float | None = None
+    threshold_percent: float | None = None
+    acknowledged: bool = False
+    acknowledged_at: datetime | None = None
+    created_at: datetime | None = None

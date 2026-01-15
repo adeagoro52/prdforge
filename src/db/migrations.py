@@ -134,6 +134,70 @@ MIGRATIONS = [
         CREATE INDEX IF NOT EXISTS idx_projects_archived ON projects(archived_at);
         """,
     ),
+    (
+        3,
+        "Add cost tracking tables",
+        """
+        -- Cost records table (per task execution)
+        CREATE TABLE IF NOT EXISTS cost_records (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            run_id INTEGER,
+            task_execution_id INTEGER,
+            executor TEXT NOT NULL,
+            model TEXT NOT NULL,
+            prompt_tokens INTEGER NOT NULL DEFAULT 0,
+            completion_tokens INTEGER NOT NULL DEFAULT 0,
+            total_tokens INTEGER NOT NULL DEFAULT 0,
+            cost_usd REAL NOT NULL DEFAULT 0.0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            metadata_json TEXT NOT NULL DEFAULT '{}',
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
+            FOREIGN KEY (run_id) REFERENCES runs(id) ON DELETE SET NULL,
+            FOREIGN KEY (task_execution_id) REFERENCES task_executions(id) ON DELETE SET NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_cost_records_project ON cost_records(project_id);
+        CREATE INDEX IF NOT EXISTS idx_cost_records_run ON cost_records(run_id);
+        CREATE INDEX IF NOT EXISTS idx_cost_records_executor ON cost_records(executor);
+        CREATE INDEX IF NOT EXISTS idx_cost_records_created ON cost_records(created_at);
+
+        -- Cost budgets table (per project)
+        CREATE TABLE IF NOT EXISTS cost_budgets (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL UNIQUE,
+            daily_budget_usd REAL,
+            monthly_budget_usd REAL,
+            total_budget_usd REAL,
+            alert_threshold_percent REAL DEFAULT 80.0,
+            is_hard_limit BOOLEAN NOT NULL DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_cost_budgets_project ON cost_budgets(project_id);
+
+        -- Cost alerts table (triggered alerts)
+        CREATE TABLE IF NOT EXISTS cost_alerts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            project_id INTEGER NOT NULL,
+            alert_type TEXT NOT NULL,
+            message TEXT NOT NULL,
+            budget_amount_usd REAL,
+            current_amount_usd REAL,
+            threshold_percent REAL,
+            acknowledged BOOLEAN NOT NULL DEFAULT 0,
+            acknowledged_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_cost_alerts_project ON cost_alerts(project_id);
+        CREATE INDEX IF NOT EXISTS idx_cost_alerts_acknowledged ON cost_alerts(acknowledged);
+        CREATE INDEX IF NOT EXISTS idx_cost_alerts_created ON cost_alerts(created_at);
+        """,
+    ),
 ]
 
 

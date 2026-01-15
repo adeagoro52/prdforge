@@ -19,13 +19,25 @@ Example usage:
 
 from .database import Database
 from .migrations import MigrationManager
-from .models import LogEntry, Project, ProjectHealth, Run, Task, TaskExecution
+from .models import (
+    AlertType,
+    CostAlert,
+    CostBudget,
+    CostRecord,
+    LogEntry,
+    Project,
+    ProjectHealth,
+    Run,
+    Task,
+    TaskExecution,
+)
 from .repositories import (
     LogRepository,
     ProjectRepository,
     RunRepository,
     TaskRepository,
 )
+from .cost_repository import CostRepository
 
 __all__ = [
     # Core
@@ -38,9 +50,14 @@ __all__ = [
     "Task",
     "TaskExecution",
     "LogEntry",
+    "CostRecord",
+    "CostBudget",
+    "CostAlert",
+    "AlertType",
     # Repositories
     "ProjectRepository",
     "RunRepository",
     "TaskRepository",
     "LogRepository",
+    "CostRepository",
 ]

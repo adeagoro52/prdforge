@@ -676,7 +676,7 @@
         "Add cost alerts and budgets",
         "Create cost reporting API endpoints"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "unit",
       "blocked_by": [
         "phase4-006"
@@ -695,7 +695,7 @@
         "Add cost comparison between runs",
         "Create cost export functionality (CSV, JSON)"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "manual",
       "blocked_by": [
         "phase5-001"
@@ -714,7 +714,7 @@
         "Add interactive branch exploration",
         "Support branch comparison view"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "manual",
       "blocked_by": [
         "phase3-007"
@@ -733,7 +733,7 @@
         "Add criteria result storage and reporting",
         "Support retry on criteria failure"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "unit",
       "blocked_by": [
         "phase3-004"

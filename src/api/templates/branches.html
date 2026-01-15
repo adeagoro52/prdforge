@@ -1,0 +1,444 @@
+{% extends "base.html" %}
+
+{% block title %}Branches - {{ project.name }} - PRDForge{% endblock %}
+
+{% block header %}
+Git Branches: {{ project.name }}
+{% endblock %}
+
+{% block content %}
+<div x-data="branchViewer({{ project.id }})" x-init="init()" class="space-y-6">
+    <!-- Breadcrumb -->
+    <nav class="flex" aria-label="Breadcrumb">
+        <ol class="flex items-center space-x-2">
+            <li>
+                <a href="/projects" class="text-gray-400 hover:text-gray-500">Projects</a>
+            </li>
+            <li class="flex items-center">
+                <svg class="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
+                </svg>
+                <a href="/projects/{{ project.id }}" class="ml-2 text-gray-400 hover:text-gray-500">{{ project.name }}</a>
+            </li>
+            <li class="flex items-center">
+                <svg class="h-5 w-5 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
+                    <path fill-rule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clip-rule="evenodd"></path>
+                </svg>
+                <span class="ml-2 text-gray-700">Branches</span>
+            </li>
+        </ol>
+    </nav>
+
+    <!-- Branch List Section -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+            <h3 class="text-lg font-medium text-gray-900">
+                <span x-text="branches.length"></span> Branches
+            </h3>
+            <div class="flex items-center space-x-2">
+                <label class="flex items-center text-sm">
+                    <input type="checkbox" x-model="showRemote" @change="loadBranches()" class="mr-2">
+                    Show remote branches
+                </label>
+                <button @click="loadBranches()" class="text-indigo-600 hover:text-indigo-800">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                    </svg>
+                </button>
+            </div>
+        </div>
+
+        <div class="divide-y divide-gray-200">
+            <template x-for="branch in branches" :key="branch.name">
+                <div class="px-6 py-4 flex items-center justify-between hover:bg-gray-50 cursor-pointer"
+                    @click="selectBranch(branch)">
+                    <div class="flex items-center">
+                        <div class="w-3 h-3 rounded-full mr-3" :style="'background-color: ' + branch.color"></div>
+                        <div>
+                            <div class="flex items-center">
+                                <span class="font-medium text-gray-900" x-text="branch.name"></span>
+                                <template x-if="branch.is_current">
+                                    <span class="ml-2 px-2 py-0.5 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                                        current
+                                    </span>
+                                </template>
+                                <template x-if="branch.is_remote">
+                                    <span class="ml-2 px-2 py-0.5 text-xs font-medium bg-gray-100 text-gray-600 rounded-full">
+                                        remote
+                                    </span>
+                                </template>
+                            </div>
+                            <div class="text-sm text-gray-500">
+                                <span class="font-mono text-xs" x-text="branch.commit"></span>
+                                <span class="mx-1">-</span>
+                                <span x-text="branch.message ? branch.message.substring(0, 60) + (branch.message.length > 60 ? '...' : '') : ''"></span>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <template x-if="branch.upstream">
+                            <span class="text-xs text-gray-400" x-text="branch.upstream"></span>
+                        </template>
+                        <button @click.stop="compareBranch(branch.name)" class="text-indigo-600 hover:text-indigo-800 text-sm">
+                            Compare
+                        </button>
+                    </div>
+                </div>
+            </template>
+        </div>
+
+        <template x-if="branches.length === 0 && !loading">
+            <div class="p-6 text-center text-gray-500">
+                No branches found. This may not be a valid git repository.
+            </div>
+        </template>
+    </div>
+
+    <!-- Branch Comparison Section -->
+    <template x-if="showComparison">
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <h3 class="text-lg font-medium text-gray-900">Branch Comparison</h3>
+                <button @click="showComparison = false" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="p-6">
+                <!-- Branch Selectors -->
+                <div class="flex items-center space-x-4 mb-6">
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Base Branch</label>
+                        <select x-model="compareBase" @change="loadComparison()" class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <template x-for="branch in branches.filter(b => !b.is_remote)" :key="'base-' + branch.name">
+                                <option :value="branch.name" x-text="branch.name"></option>
+                            </template>
+                        </select>
+                    </div>
+                    <div class="flex items-center pt-6">
+                        <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"></path>
+                        </svg>
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-sm font-medium text-gray-700 mb-1">Head Branch</label>
+                        <select x-model="compareHead" @change="loadComparison()" class="w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500">
+                            <template x-for="branch in branches.filter(b => !b.is_remote)" :key="'head-' + branch.name">
+                                <option :value="branch.name" x-text="branch.name"></option>
+                            </template>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Comparison Stats -->
+                <template x-if="comparison">
+                    <div class="space-y-4">
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div class="bg-green-50 rounded-lg p-4 text-center">
+                                <div class="text-2xl font-bold text-green-700" x-text="comparison.commits_ahead"></div>
+                                <div class="text-sm text-green-600">Commits ahead</div>
+                            </div>
+                            <div class="bg-red-50 rounded-lg p-4 text-center">
+                                <div class="text-2xl font-bold text-red-700" x-text="comparison.commits_behind"></div>
+                                <div class="text-sm text-red-600">Commits behind</div>
+                            </div>
+                            <div class="bg-blue-50 rounded-lg p-4 text-center">
+                                <div class="text-2xl font-bold text-blue-700" x-text="comparison.files_changed"></div>
+                                <div class="text-sm text-blue-600">Files changed</div>
+                            </div>
+                            <div class="bg-gray-50 rounded-lg p-4 text-center">
+                                <div class="text-lg font-mono text-gray-700" x-text="comparison.merge_base || 'N/A'"></div>
+                                <div class="text-sm text-gray-600">Merge base</div>
+                            </div>
+                        </div>
+
+                        <!-- Lines changed -->
+                        <div class="flex items-center space-x-4 text-sm">
+                            <span class="text-green-600">
+                                <span class="font-mono">+</span><span x-text="comparison.insertions"></span>
+                            </span>
+                            <span class="text-red-600">
+                                <span class="font-mono">-</span><span x-text="comparison.deletions"></span>
+                            </span>
+                        </div>
+
+                        <!-- Changed Files -->
+                        <template x-if="comparison.changed_files.length > 0">
+                            <div>
+                                <h4 class="text-sm font-medium text-gray-700 mb-2">Changed Files</h4>
+                                <div class="bg-gray-50 rounded-lg max-h-64 overflow-y-auto">
+                                    <template x-for="file in comparison.changed_files" :key="file.path">
+                                        <div class="px-4 py-2 border-b border-gray-100 flex items-center">
+                                            <span class="w-6 text-center font-mono text-sm"
+                                                :class="{
+                                                    'text-green-600': file.status === 'A',
+                                                    'text-red-600': file.status === 'D',
+                                                    'text-yellow-600': file.status === 'M',
+                                                    'text-blue-600': file.status === 'R'
+                                                }"
+                                                x-text="file.status"></span>
+                                            <span class="text-sm text-gray-700 truncate" x-text="file.path"></span>
+                                        </div>
+                                    </template>
+                                </div>
+                            </div>
+                        </template>
+                    </div>
+                </template>
+            </div>
+        </div>
+    </template>
+
+    <!-- Branch Details/Commits Section -->
+    <template x-if="selectedBranch">
+        <div class="bg-white rounded-lg shadow">
+            <div class="px-6 py-4 border-b border-gray-200 flex justify-between items-center">
+                <div class="flex items-center">
+                    <div class="w-4 h-4 rounded-full mr-3" :style="'background-color: ' + selectedBranch.color"></div>
+                    <h3 class="text-lg font-medium text-gray-900" x-text="selectedBranch.name"></h3>
+                </div>
+                <button @click="selectedBranch = null; commits = []" class="text-gray-400 hover:text-gray-600">
+                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+
+            <div class="px-6 py-4">
+                <h4 class="text-sm font-medium text-gray-700 mb-4">Recent Commits</h4>
+                <div class="space-y-3">
+                    <template x-for="commit in commits" :key="commit.hash">
+                        <div class="flex items-start border-l-2 pl-4"
+                            :style="'border-color: ' + selectedBranch.color">
+                            <div class="flex-1">
+                                <div class="flex items-center">
+                                    <span class="font-mono text-xs text-gray-500" x-text="commit.short_hash"></span>
+                                    <span class="mx-2 text-gray-300">|</span>
+                                    <span class="text-sm text-gray-900" x-text="commit.message"></span>
+                                </div>
+                                <div class="text-xs text-gray-500 mt-1">
+                                    <span x-text="commit.author_name"></span>
+                                    <span class="mx-1">-</span>
+                                    <span x-text="formatDate(commit.date)"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <template x-if="commits.length === 0">
+                    <div class="text-center text-gray-500 py-4">
+                        No commits to display
+                    </div>
+                </template>
+            </div>
+        </div>
+    </template>
+
+    <!-- Branch Graph Visualization -->
+    <div class="bg-white rounded-lg shadow">
+        <div class="px-6 py-4 border-b border-gray-200">
+            <h3 class="text-lg font-medium text-gray-900">Commit Graph</h3>
+        </div>
+
+        <div class="p-6 overflow-x-auto">
+            <div class="min-w-max">
+                <!-- Simple commit timeline -->
+                <div class="relative">
+                    <template x-for="(commit, index) in graphData.commits.slice(0, 30)" :key="commit.hash">
+                        <div class="flex items-center mb-2">
+                            <!-- Graph lines -->
+                            <div class="w-24 flex items-center justify-center">
+                                <div class="w-3 h-3 rounded-full"
+                                    :style="'background-color: ' + getCommitColor(commit)"></div>
+                                <template x-if="index < graphData.commits.length - 1">
+                                    <div class="h-6 w-0.5 absolute mt-5"
+                                        :style="'background-color: ' + getCommitColor(commit)"></div>
+                                </template>
+                            </div>
+                            <!-- Commit info -->
+                            <div class="flex-1 ml-4">
+                                <div class="flex items-center">
+                                    <span class="font-mono text-xs text-gray-500 w-16" x-text="commit.short_hash"></span>
+                                    <span class="text-sm text-gray-900 truncate" x-text="commit.message" style="max-width: 400px;"></span>
+                                    <!-- Branch refs -->
+                                    <template x-for="ref in commit.refs" :key="ref">
+                                        <span class="ml-2 px-2 py-0.5 text-xs rounded-full"
+                                            :class="{
+                                                'bg-indigo-100 text-indigo-800': ref.includes('HEAD'),
+                                                'bg-green-100 text-green-800': !ref.includes('HEAD') && !ref.includes('origin'),
+                                                'bg-gray-100 text-gray-600': ref.includes('origin')
+                                            }"
+                                            x-text="ref.replace('HEAD -> ', '').replace('origin/', '')"></span>
+                                    </template>
+                                </div>
+                                <div class="text-xs text-gray-400 mt-0.5">
+                                    <span x-text="commit.author"></span>
+                                    <span class="mx-1">-</span>
+                                    <span x-text="formatDate(commit.date)"></span>
+                                </div>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+
+                <template x-if="graphData.commits.length === 0">
+                    <div class="text-center text-gray-500 py-8">
+                        No commit history available
+                    </div>
+                </template>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Indicator -->
+    <template x-if="loading">
+        <div class="fixed inset-0 bg-gray-900 bg-opacity-50 flex items-center justify-center z-50">
+            <div class="bg-white rounded-lg p-6 flex items-center">
+                <svg class="animate-spin h-6 w-6 text-indigo-600 mr-3" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span class="text-gray-700">Loading...</span>
+            </div>
+        </div>
+    </template>
+</div>
+
+<script>
+function branchViewer(projectId) {
+    return {
+        projectId: projectId,
+        branches: [],
+        currentBranch: null,
+        selectedBranch: null,
+        commits: [],
+        graphData: { branches: [], commits: [] },
+        showRemote: false,
+        showComparison: false,
+        compareBase: '',
+        compareHead: '',
+        comparison: null,
+        loading: false,
+
+        async init() {
+            await this.loadBranches();
+            await this.loadGraph();
+        },
+
+        async loadBranches() {
+            this.loading = true;
+            try {
+                const response = await fetch(
+                    '/api/projects/' + this.projectId + '/branches?include_remote=' + this.showRemote
+                );
+                const data = await response.json();
+                this.branches = data.branches;
+                this.currentBranch = data.current_branch;
+
+                // Assign colors
+                const colors = [
+                    '#3b82f6', '#10b981', '#f59e0b', '#ef4444',
+                    '#8b5cf6', '#ec4899', '#06b6d4', '#f97316'
+                ];
+                this.branches.forEach((b, i) => {
+                    b.color = colors[i % colors.length];
+                });
+
+                // Set default comparison branches
+                if (this.branches.length >= 2) {
+                    this.compareBase = this.branches.find(b => b.name === 'main' || b.name === 'master')?.name || this.branches[0].name;
+                    this.compareHead = this.currentBranch || this.branches[1].name;
+                }
+            } catch (error) {
+                console.error('Failed to load branches:', error);
+            } finally {
+                this.loading = false;
+            }
+        },
+
+        async loadGraph() {
+            try {
+                const response = await fetch(
+                    '/api/projects/' + this.projectId + '/branches/graph?count=50'
+                );
+                this.graphData = await response.json();
+            } catch (error) {
+                console.error('Failed to load graph:', error);
+            }
+        },
+
+        async selectBranch(branch) {
+            this.selectedBranch = branch;
+            try {
+                const response = await fetch(
+                    '/api/projects/' + this.projectId + '/branches/' + encodeURIComponent(branch.name) + '/commits?count=20'
+                );
+                const data = await response.json();
+                this.commits = data.commits;
+            } catch (error) {
+                console.error('Failed to load commits:', error);
+            }
+        },
+
+        compareBranch(branchName) {
+            this.showComparison = true;
+            if (this.currentBranch && branchName !== this.currentBranch) {
+                this.compareBase = this.currentBranch;
+                this.compareHead = branchName;
+            } else {
+                const defaultBase = this.branches.find(b => b.name === 'main' || b.name === 'master');
+                this.compareBase = defaultBase?.name || this.branches[0]?.name;
+                this.compareHead = branchName;
+            }
+            this.loadComparison();
+        },
+
+        async loadComparison() {
+            if (!this.compareBase || !this.compareHead) return;
+            if (this.compareBase === this.compareHead) {
+                this.comparison = null;
+                return;
+            }
+
+            try {
+                const response = await fetch(
+                    '/api/projects/' + this.projectId + '/branches/compare' +
+                    '?base=' + encodeURIComponent(this.compareBase) +
+                    '&head=' + encodeURIComponent(this.compareHead)
+                );
+                this.comparison = await response.json();
+            } catch (error) {
+                console.error('Failed to load comparison:', error);
+            }
+        },
+
+        getCommitColor(commit) {
+            // Find color based on refs
+            for (const ref of commit.refs) {
+                const cleanRef = ref.replace('HEAD -> ', '').replace('origin/', '');
+                const branch = this.graphData.branches.find(b => b.name === cleanRef);
+                if (branch) return branch.color;
+            }
+            return '#6b7280';  // Default gray
+        },
+
+        formatDate(dateStr) {
+            if (!dateStr) return '';
+            const date = new Date(dateStr);
+            const now = new Date();
+            const diff = now - date;
+            const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+
+            if (days === 0) return 'today';
+            if (days === 1) return 'yesterday';
+            if (days < 7) return days + ' days ago';
+            if (days < 30) return Math.floor(days / 7) + ' weeks ago';
+            return date.toLocaleDateString();
+        }
+    };
+}
+</script>
+{% endblock %}

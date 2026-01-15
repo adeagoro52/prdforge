@@ -639,3 +639,212 @@ class GitManager:
             GitResult indicating success or failure.
         """
         return self._run_git("worktree", "prune")
+
+    def list_branches(self, include_remote: bool = False) -> list[dict]:
+        """List all branches with metadata.
+
+        Args:
+            include_remote: If True, include remote-tracking branches.
+
+        Returns:
+            List of dicts with branch information.
+        """
+        args = ["branch", "-v", "--format=%(refname:short)|%(objectname:short)|%(upstream:short)|%(authordate:iso8601)|%(subject)"]
+        if include_remote:
+            args.append("-a")
+
+        result = self._run_git(*args)
+        branches = []
+
+        if result.success and result.output:
+            current = self.get_current_branch()
+            for line in result.output.splitlines():
+                parts = line.split("|")
+                if len(parts) >= 5:
+                    name = parts[0].strip()
+                    branches.append({
+                        "name": name,
+                        "commit": parts[1],
+                        "upstream": parts[2] if parts[2] else None,
+                        "date": parts[3] if parts[3] else None,
+                        "message": parts[4] if parts[4] else "",
+                        "is_current": name == current,
+                        "is_remote": name.startswith("remotes/") or "/" in name,
+                    })
+
+        return branches
+
+    def get_branch_commits(
+        self, branch: str, count: int = 20, since_branch: str | None = None
+    ) -> list[dict]:
+        """Get commits for a branch.
+
+        Args:
+            branch: Branch name.
+            count: Maximum number of commits.
+            since_branch: Optional base branch to limit commits.
+
+        Returns:
+            List of commit dicts.
+        """
+        format_str = "%H|%h|%an|%ae|%ai|%s"
+        args = ["log", f"--format={format_str}", f"-{count}"]
+
+        if since_branch:
+            args.append(f"{since_branch}..{branch}")
+        else:
+            args.append(branch)
+
+        result = self._run_git(*args)
+        commits = []
+
+        if result.success and result.output:
+            for line in result.output.splitlines():
+                parts = line.split("|")
+                if len(parts) >= 6:
+                    commits.append({
+                        "hash": parts[0],
+                        "short_hash": parts[1],
+                        "author_name": parts[2],
+                        "author_email": parts[3],
+                        "date": parts[4],
+                        "message": parts[5],
+                    })
+
+        return commits
+
+    def get_merge_base(self, branch1: str, branch2: str) -> str | None:
+        """Get the merge base commit between two branches.
+
+        Args:
+            branch1: First branch.
+            branch2: Second branch.
+
+        Returns:
+            Merge base commit hash, or None.
+        """
+        result = self._run_git("merge-base", branch1, branch2)
+        return result.output if result.success else None
+
+    def get_branch_graph(
+        self,
+        branches: list[str] | None = None,
+        count: int = 50,
+    ) -> dict:
+        """Get a simplified branch graph structure.
+
+        Args:
+            branches: List of branches to include (None for all).
+            count: Max commits to include.
+
+        Returns:
+            Dict with 'branches' and 'commits' for visualization.
+        """
+        all_branches = self.list_branches()
+
+        if branches:
+            all_branches = [b for b in all_branches if b["name"] in branches]
+
+        # Get recent commits with graph info
+        format_str = "%H|%h|%P|%an|%ai|%D|%s"
+        result = self._run_git(
+            "log",
+            "--all",
+            f"--format={format_str}",
+            f"-{count}",
+            "--date-order",
+        )
+
+        commits = []
+        if result.success and result.output:
+            for line in result.output.splitlines():
+                parts = line.split("|")
+                if len(parts) >= 7:
+                    refs = parts[5].strip() if parts[5] else ""
+                    commits.append({
+                        "hash": parts[0],
+                        "short_hash": parts[1],
+                        "parents": parts[2].split() if parts[2] else [],
+                        "author": parts[3],
+                        "date": parts[4],
+                        "refs": [r.strip() for r in refs.split(",") if r.strip()],
+                        "message": parts[6],
+                    })
+
+        # Determine branch colors and positions
+        branch_colors = {}
+        colors = [
+            "#3b82f6",  # blue
+            "#10b981",  # green
+            "#f59e0b",  # yellow
+            "#ef4444",  # red
+            "#8b5cf6",  # purple
+            "#ec4899",  # pink
+            "#06b6d4",  # cyan
+            "#f97316",  # orange
+        ]
+
+        for i, branch in enumerate(all_branches):
+            branch_colors[branch["name"]] = colors[i % len(colors)]
+
+        return {
+            "branches": [
+                {
+                    **b,
+                    "color": branch_colors.get(b["name"], "#6b7280"),
+                }
+                for b in all_branches
+            ],
+            "commits": commits,
+            "current_branch": self.get_current_branch(),
+        }
+
+    def compare_branches(self, base: str, head: str) -> dict:
+        """Compare two branches.
+
+        Args:
+            base: Base branch.
+            head: Head branch to compare.
+
+        Returns:
+            Dict with comparison data.
+        """
+        # Get commits ahead/behind
+        result = self._run_git("rev-list", "--left-right", "--count", f"{base}...{head}")
+        ahead = 0
+        behind = 0
+        if result.success and result.output:
+            parts = result.output.split()
+            if len(parts) == 2:
+                behind = int(parts[0])
+                ahead = int(parts[1])
+
+        # Get diff stats
+        diff_stats = self.get_diff_stats(base, head)
+
+        # Get changed files
+        files_result = self._run_git("diff", "--name-status", f"{base}...{head}")
+        changed_files = []
+        if files_result.success and files_result.output:
+            for line in files_result.output.splitlines():
+                parts = line.split("\t")
+                if len(parts) >= 2:
+                    changed_files.append({
+                        "status": parts[0],
+                        "path": parts[1],
+                    })
+
+        # Get merge base
+        merge_base = self.get_merge_base(base, head)
+
+        return {
+            "base": base,
+            "head": head,
+            "commits_ahead": ahead,
+            "commits_behind": behind,
+            "files_changed": diff_stats["files_changed"],
+            "insertions": diff_stats["insertions"],
+            "deletions": diff_stats["deletions"],
+            "changed_files": changed_files,
+            "merge_base": merge_base[:8] if merge_base else None,
+        }
