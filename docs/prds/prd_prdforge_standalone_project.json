@@ -386,7 +386,7 @@
         "Implement PRDGenerateSkill for interview-based PRD creation",
         "Create SkillRegistry for discovering and loading skills"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "unit",
       "blocked_by": ["phase2-010"]
     },
@@ -403,7 +403,7 @@
         "Add skill validation on load",
         "Create skill list command to show available skills"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "unit",
       "blocked_by": ["phase3-002"]
     },
@@ -420,7 +420,7 @@
         "Support custom command hooks",
         "Add hook success/failure handling with continue/halt options"
       ],
-      "passes": false,
+      "passes": true,
       "test_coverage": "unit",
       "blocked_by": ["phase3-003"]
     },

@@ -313,6 +313,71 @@ def db_init(ctx: Context, path: str):
         sys.exit(1)
 
 
+@cli.command("list-skills")
+@click.option(
+    "-p", "--project",
+    type=click.Path(exists=True, file_okay=False),
+    help="Project directory to include project-level skills",
+)
+@pass_context
+def list_skills(ctx: Context, project: Optional[str]):
+    """List available skills.
+
+    Shows all skills available for use in hooks and tasks,
+    including built-in, user, and project-level skills.
+    """
+    from src.skills import SkillRegistry
+    from src.skills.base import SkillSource
+
+    registry = SkillRegistry()
+
+    # Discover skills in order
+    builtin_count = registry.discover_builtin()
+    user_count = registry.discover_user_skills()
+    project_count = 0
+
+    if project:
+        project_path = Path(project).resolve()
+        project_count = registry.discover_project_skills(project_path)
+
+    click.echo("Available Skills:")
+    click.echo("")
+
+    # Group by source
+    skills_by_source = {
+        SkillSource.PACKAGE: [],
+        SkillSource.USER: [],
+        SkillSource.PROJECT: [],
+    }
+
+    for skill in registry.list_all():
+        skills_by_source[skill.source].append(skill)
+
+    # Print built-in skills
+    if skills_by_source[SkillSource.PACKAGE]:
+        click.echo(click.style("Built-in:", fg="blue", bold=True))
+        for skill in sorted(skills_by_source[SkillSource.PACKAGE], key=lambda s: s.name):
+            click.echo(f"  {skill.name:<20} {skill.description}")
+
+    # Print user skills
+    if skills_by_source[SkillSource.USER]:
+        click.echo("")
+        click.echo(click.style("User (~/.prdforge/skills/):", fg="green", bold=True))
+        for skill in sorted(skills_by_source[SkillSource.USER], key=lambda s: s.name):
+            click.echo(f"  {skill.name:<20} {skill.description}")
+
+    # Print project skills
+    if skills_by_source[SkillSource.PROJECT]:
+        click.echo("")
+        click.echo(click.style("Project (.prdforge/skills/):", fg="yellow", bold=True))
+        for skill in sorted(skills_by_source[SkillSource.PROJECT], key=lambda s: s.name):
+            click.echo(f"  {skill.name:<20} {skill.description}")
+
+    click.echo("")
+    click.echo(f"Total: {len(registry.list_all())} skills "
+               f"({builtin_count} built-in, {user_count} user, {project_count} project)")
+
+
 def main():
     """Entry point for PRDForge CLI."""
     cli()
