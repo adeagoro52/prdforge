@@ -1,0 +1,36 @@
+# Git
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+
+# Node (frontend has its own Dockerfile)
+node_modules/
+
+# IDE
+.idea/
+.vscode/
+
+# Tests
+tests/
+.pytest_cache/
+
+# Docs
+docs/
+*.md
+!README.md
+
+# Local dev files
+.env
+.env.local
+*.db
+logs/
+.meta_runner_state.json

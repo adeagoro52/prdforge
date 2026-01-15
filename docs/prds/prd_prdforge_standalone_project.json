@@ -1,0 +1,768 @@
+{
+  "meta": {
+    "feature_name": "PRDForge - Standalone PRD Runner Platform",
+    "feature_slug": "prdforge_standalone_project",
+    "exec_plan": null,
+    "created_at": "2025-01-15",
+    "wave": "new-project",
+    "priority": "strategic",
+    "interview_conducted": true,
+    "description": "PRDForge is a standalone, project-agnostic platform for PRD-driven AI code generation. Inspired by Ralph (VSCode Copilot extension), it provides a web dashboard to manage, visualize, and control autonomous PRD execution across multiple projects with pluggable AI backends (Claude, Codex, Gemini).",
+    "inspiration": "https://github.com/aymenfurter/ralph",
+    "project_name": "PRDForge",
+    "tagline": "Where PRDs are forged into code",
+    "tech_stack_decision": "TBD - FastAPI + Vue/Svelte or Next.js",
+    "deployment": "Docker Compose",
+    "storage": "SQLite",
+    "license": "Internal tool first, potential open source later"
+  },
+  "phases": [
+    {
+      "phase": 1,
+      "name": "Core Engine Extraction",
+      "description": "Extract and generalize meta_prd_runner.sh into a standalone, project-agnostic execution engine",
+      "estimated_tasks": 8
+    },
+    {
+      "phase": 2,
+      "name": "Basic Web Dashboard",
+      "description": "Create minimal web UI for project management, run control, and basic visualization",
+      "estimated_tasks": 10
+    },
+    {
+      "phase": 3,
+      "name": "Multi-Project & Skills System",
+      "description": "Support multiple projects from central dashboard and implement inherit/override skills architecture",
+      "estimated_tasks": 8
+    },
+    {
+      "phase": 4,
+      "name": "AI Backend Plugins",
+      "description": "Add pluggable AI backends beyond Claude CLI (Codex, Gemini, direct API)",
+      "estimated_tasks": 6
+    },
+    {
+      "phase": 5,
+      "name": "Advanced Features",
+      "description": "Cost tracking, advanced visualizations, quality gates, team features foundation",
+      "estimated_tasks": 10
+    }
+  ],
+  "tasks": [
+    {
+      "id": "phase1-001",
+      "phase": 1,
+      "category": "config",
+      "description": "Create new repository structure for PRDForge",
+      "steps": [
+        "Create new git repository: prdforge",
+        "Set up basic directory structure: src/, config/, docs/, tests/",
+        "Create README.md with project vision and roadmap",
+        "Add LICENSE file (proprietary initially)",
+        "Create .gitignore for Python/Node artifacts",
+        "Set up Docker Compose skeleton with placeholder services"
+      ],
+      "passes": false,
+      "test_coverage": "none",
+      "blocked_by": []
+    },
+    {
+      "id": "phase1-002",
+      "phase": 1,
+      "category": "backend",
+      "description": "Extract core execution engine from meta_prd_runner.sh",
+      "steps": [
+        "Create src/engine/ directory for core execution logic",
+        "Port bash functions to Python classes: RunManager, PRDExecutor, GitManager",
+        "Abstract project-specific paths and configurations",
+        "Create ExecutionConfig dataclass for run configuration",
+        "Implement state management with SQLite instead of JSON files",
+        "Add comprehensive logging with structured JSON output option"
+      ],
+      "passes": false,
+      "test_coverage": "unit",
+      "blocked_by": ["phase1-001"]
+    },
+    {
+      "id": "phase1-003",
+      "phase": 1,
+      "category": "backend",
+      "description": "Implement flexible branching workflow in Python",
+      "steps": [
+        "Port run branch creation and management logic",
+        "Implement per-PRD base branch resolution",
+        "Port merge workflow (PRD -> base -> run -> sync develop)",
+        "Handle conflicts gracefully with configurable strategies",
+        "Add branch push to origin functionality",
+        "Create GitOperations class with all git operations encapsulated"
+      ],
+      "passes": false,
+      "test_coverage": "unit",
+      "blocked_by": ["phase1-002"]
+    },
+    {
+      "id": "phase1-004",
+      "phase": 1,
+      "category": "backend",
+      "description": "Create AI executor abstraction layer",
+      "steps": [
+        "Create src/executors/ directory",
+        "Define BaseExecutor abstract class with execute_task() method",
+        "Implement ClaudeCLIExecutor that shells out to claude CLI",
+        "Add retry logic with exponential backoff for API errors",
+        "Implement output parsing and status detection",
+        "Create ExecutorFactory for instantiating correct executor"
+      ],
+      "passes": false,
+      "test_coverage": "unit",
+      "blocked_by": ["phase1-002"]
+    },
+    {
+      "id": "phase1-005",
+      "phase": 1,
+      "category": "backend",
+      "description": "Implement PRD file parsing and format support",
+      "steps": [
+        "Create src/prd/ directory for PRD handling",
+        "Implement JSONPRDParser for current JSON format",
+        "Implement MarkdownPRDParser for Ralph-style markdown format",
+        "Create PRDConverter for converting between formats",
+        "Define unified PRD dataclass that both parsers produce",
+        "Add format auto-detection based on file extension and content"
+      ],
+      "passes": false,
+      "test_coverage": "unit",
+      "blocked_by": ["phase1-001"]
+    },
+    {
+      "id": "phase1-006",
+      "phase": 1,
+      "category": "backend",
+      "description": "Create project configuration system",
+      "steps": [
+        "Define ProjectConfig dataclass with all project settings",
+        "Support project config from: CLI args > env vars > config file > defaults",
+        "Create config file format: prdforge.yaml or prdforge.json",
+        "Implement config validation with helpful error messages",
+        "Support both local path projects and git URL projects",
+        "Add project initialization command to create config template"
+      ],
+      "passes": false,
+      "test_coverage": "unit",
+      "blocked_by": ["phase1-001"]
+    },
+    {
+      "id": "phase1-007",
+      "phase": 1,
+      "category": "backend",
+      "description": "Implement SQLite data layer",
+      "steps": [
+        "Create src/db/ directory with database models",
+        "Define tables: projects, runs, tasks, task_executions, logs",
+        "Implement RunRepository for CRUD on runs",
+        "Implement TaskRepository for task status tracking",
+        "Add migration system for schema evolution",
+        "Create database initialization on first run"
+      ],
+      "passes": false,
+      "test_coverage": "unit",
+      "blocked_by": ["phase1-001"]
+    },
+    {
+      "id": "phase1-008",
+      "phase": 1,
+      "category": "backend",
+      "description": "Create minimal CLI for server management",
+      "steps": [
+        "Create src/cli.py with Click or Typer",
+        "Implement 'prdforge serve' to start web server",
+        "Implement 'prdforge init' to create project config",
+        "Implement 'prdforge version' for version info",
+        "Add --config flag to specify config file location",
+        "Create console entry point in pyproject.toml/setup.py"
+      ],
+      "passes": false,
+      "test_coverage": "manual",
+      "blocked_by": ["phase1-006", "phase1-007"]
+    },
+    {
+      "id": "phase2-001",
+      "phase": 2,
+      "category": "frontend",
+      "description": "Set up web dashboard project structure",
+      "steps": [
+        "Decide on frontend framework (FastAPI + Vue or Next.js)",
+        "Create frontend directory structure",
+        "Set up build tooling (Vite for Vue, or Next.js built-in)",
+        "Configure TypeScript",
+        "Set up CSS framework (Tailwind recommended)",
+        "Create Docker service for frontend dev server"
+      ],
+      "passes": false,
+      "test_coverage": "none",
+      "blocked_by": ["phase1-008"]
+    },
+    {
+      "id": "phase2-002",
+      "phase": 2,
+      "category": "backend",
+      "description": "Create REST API for dashboard",
+      "steps": [
+        "Create src/api/ directory with FastAPI/Express routes",
+        "Implement GET /api/projects - list all projects",
+        "Implement POST /api/projects - add new project",
+        "Implement GET /api/projects/{id}/runs - list runs for project",
+        "Implement POST /api/projects/{id}/runs - start new run",
+        "Implement GET /api/runs/{id} - get run details with tasks",
+        "Add WebSocket endpoint for real-time run updates"
+      ],
+      "passes": false,
+      "test_coverage": "integration",
+      "blocked_by": ["phase1-007", "phase1-008"]
+    },
+    {
+      "id": "phase2-003",
+      "phase": 2,
+      "category": "frontend",
+      "description": "Create project list and management view",
+      "steps": [
+        "Create ProjectList component showing all registered projects",
+        "Display project name, path/URL, last run status, task count",
+        "Add 'Add Project' form (local path or git URL)",
+        "Add project settings/edit modal",
+        "Add delete project with confirmation",
+        "Implement project search/filter"
+      ],
+      "passes": false,
+      "test_coverage": "manual",
+      "blocked_by": ["phase2-001", "phase2-002"]
+    },
+    {
+      "id": "phase2-004",
+      "phase": 2,
+      "category": "frontend",
+      "description": "Create run control panel (inspired by Ralph)",
+      "steps": [
+        "Create RunControlPanel component with Start/Pause/Stop buttons",
+        "Show current task being executed with spinner",
+        "Display run status: idle, running, paused, completed, failed",
+        "Add run configuration options (base branch, skip flags)",
+        "Show elapsed time and estimated remaining time",
+        "Implement keyboard shortcuts (space=pause, escape=stop)"
+      ],
+      "passes": false,
+      "test_coverage": "manual",
+      "blocked_by": ["phase2-003"]
+    },
+    {
+      "id": "phase2-005",
+      "phase": 2,
+      "category": "frontend",
+      "description": "Create task list view with status indicators",
+      "steps": [
+        "Create TaskList component showing all PRD tasks",
+        "Show task status icons: pending, running, completed, failed, skipped",
+        "Display task category, description, and acceptance criteria",
+        "Show blocked_by dependencies visually",
+        "Add expand/collapse for task details and steps",
+        "Highlight currently executing task"
+      ],
+      "passes": false,
+      "test_coverage": "manual",
+      "blocked_by": ["phase2-003"]
+    },
+    {
+      "id": "phase2-006",
+      "phase": 2,
+      "category": "frontend",
+      "description": "Create task timeline visualization (like Ralph)",
+      "steps": [
+        "Create TaskTimeline component with horizontal timeline",
+        "Show task blocks with width proportional to duration",
+        "Color code by status: green=completed, red=failed, blue=running",
+        "Add hover tooltips with task details and timing",
+        "Support zoom in/out for long runs",
+        "Show milestone markers for phase completions"
+      ],
+      "passes": false,
+      "test_coverage": "manual",
+      "blocked_by": ["phase2-005"]
+    },
+    {
+      "id": "phase2-007",
+      "phase": 2,
+      "category": "frontend",
+      "description": "Create real-time log viewer",
+      "steps": [
+        "Create LogViewer component with streaming output",
+        "Support ANSI color codes for terminal-style output",
+        "Add log level filtering (info, warn, error, debug)",
+        "Implement auto-scroll with pause on scroll up",
+        "Add search within logs",
+        "Support log download as text file"
+      ],
+      "passes": false,
+      "test_coverage": "manual",
+      "blocked_by": ["phase2-002"]
+    },
+    {
+      "id": "phase2-008",
+      "phase": 2,
+      "category": "frontend",
+      "description": "Create run history view",
+      "steps": [
+        "Create RunHistory component showing past runs",
+        "Display run date, duration, success/failure count",
+        "Add run comparison view (diff between runs)",
+        "Support run filtering by date range, status",
+        "Add run details drill-down",
+        "Implement run re-run functionality"
+      ],
+      "passes": false,
+      "test_coverage": "manual",
+      "blocked_by": ["phase2-003"]
+    },
+    {
+      "id": "phase2-009",
+      "phase": 2,
+      "category": "config",
+      "description": "Create Docker Compose setup for development",
+      "steps": [
+        "Create docker-compose.yml with all services",
+        "Add backend service with Python/Node runtime",
+        "Add frontend dev server service",
+        "Add SQLite volume mount for persistence",
+        "Create .env.example with all configuration options",
+        "Add health checks for all services"
+      ],
+      "passes": false,
+      "test_coverage": "manual",
+      "blocked_by": ["phase2-001", "phase2-002"]
+    },
+    {
+      "id": "phase2-010",
+      "phase": 2,
+      "category": "docs",
+      "description": "Create getting started documentation",
+      "steps": [
+        "Write installation guide (Docker Compose)",
+        "Create quick start tutorial with example project",
+        "Document configuration options",
+        "Add screenshots of dashboard",
+        "Create troubleshooting guide",
+        "Add FAQ section"
+      ],
+      "passes": false,
+      "test_coverage": "none",
+      "blocked_by": ["phase2-009"]
+    },
+    {
+      "id": "phase3-001",
+      "phase": 3,
+      "category": "backend",
+      "description": "Implement multi-project management",
+      "steps": [
+        "Update Project model to support multiple projects",
+        "Implement project switching in dashboard context",
+        "Add project grouping/tagging support",
+        "Create project health status aggregation view",
+        "Support concurrent runs across different projects",
+        "Add project archiving functionality"
+      ],
+      "passes": false,
+      "test_coverage": "unit",
+      "blocked_by": ["phase2-010"]
+    },
+    {
+      "id": "phase3-002",
+      "phase": 3,
+      "category": "backend",
+      "description": "Create base skills package",
+      "steps": [
+        "Create src/skills/ directory for skill definitions",
+        "Define Skill base class with execute() method",
+        "Implement CodeSimplifySkill wrapping code-simplify agent",
+        "Implement CodeReviewSkill wrapping /review command",
+        "Implement PRDGenerateSkill for interview-based PRD creation",
+        "Create SkillRegistry for discovering and loading skills"
+      ],
+      "passes": false,
+      "test_coverage": "unit",
+      "blocked_by": ["phase2-010"]
+    },
+    {
+      "id": "phase3-003",
+      "phase": 3,
+      "category": "backend",
+      "description": "Implement skill inheritance and override system",
+      "steps": [
+        "Define skill discovery paths: package > user > project",
+        "Implement skill override by name matching",
+        "Create .prdforge/skills/ directory convention for project skills",
+        "Support skill configuration via YAML/JSON",
+        "Add skill validation on load",
+        "Create skill list command to show available skills"
+      ],
+      "passes": false,
+      "test_coverage": "unit",
+      "blocked_by": ["phase3-002"]
+    },
+    {
+      "id": "phase3-004",
+      "phase": 3,
+      "category": "backend",
+      "description": "Implement post-task hooks system",
+      "steps": [
+        "Define Hook dataclass with name, type (skill/command), and config",
+        "Support hook configuration at project and task level",
+        "Implement hook execution after task completion",
+        "Add built-in hooks: test, lint, typecheck, simplify, review",
+        "Support custom command hooks",
+        "Add hook success/failure handling with continue/halt options"
+      ],
+      "passes": false,
+      "test_coverage": "unit",
+      "blocked_by": ["phase3-003"]
+    },
+    {
+      "id": "phase3-005",
+      "phase": 3,
+      "category": "frontend",
+      "description": "Create project switcher in dashboard",
+      "steps": [
+        "Add project dropdown/selector to dashboard header",
+        "Show project health indicator in selector",
+        "Support keyboard shortcut for quick project switch",
+        "Remember last active project per session",
+        "Add 'All Projects' overview mode",
+        "Show currently active run indicator per project"
+      ],
+      "passes": false,
+      "test_coverage": "manual",
+      "blocked_by": ["phase3-001"]
+    },
+    {
+      "id": "phase3-006",
+      "phase": 3,
+      "category": "frontend",
+      "description": "Create skills management UI",
+      "steps": [
+        "Create SkillsList component showing available skills",
+        "Show skill source (package/user/project) with override indicator",
+        "Add skill configuration editor",
+        "Support enabling/disabling skills per project",
+        "Add skill test/dry-run functionality",
+        "Show skill execution history"
+      ],
+      "passes": false,
+      "test_coverage": "manual",
+      "blocked_by": ["phase3-003", "phase3-005"]
+    },
+    {
+      "id": "phase3-007",
+      "phase": 3,
+      "category": "backend",
+      "description": "Support remote git repositories",
+      "steps": [
+        "Implement git clone for remote repo URLs",
+        "Create workspace directory management for cloned repos",
+        "Support git worktrees for parallel PRD execution",
+        "Implement credential management (SSH keys, tokens)",
+        "Add remote sync (fetch/pull) before runs",
+        "Support push to remote after successful runs"
+      ],
+      "passes": false,
+      "test_coverage": "integration",
+      "blocked_by": ["phase3-001"]
+    },
+    {
+      "id": "phase3-008",
+      "phase": 3,
+      "category": "backend",
+      "description": "Implement PRD generation with interview mode",
+      "steps": [
+        "Port /prd skill logic to PRDForge",
+        "Create InterviewSession class for Q&A flow",
+        "Implement question generation based on context",
+        "Store interview responses and synthesize PRD",
+        "Support review mode for existing PRDs",
+        "Add PRD template system for common patterns"
+      ],
+      "passes": false,
+      "test_coverage": "unit",
+      "blocked_by": ["phase3-002"]
+    },
+    {
+      "id": "phase4-001",
+      "phase": 4,
+      "category": "backend",
+      "description": "Create AI executor plugin system",
+      "steps": [
+        "Define ExecutorPlugin interface with standard methods",
+        "Create plugin discovery mechanism",
+        "Implement plugin configuration schema",
+        "Add plugin enable/disable at project level",
+        "Create executor selection logic based on task/project config",
+        "Add plugin health check functionality"
+      ],
+      "passes": false,
+      "test_coverage": "unit",
+      "blocked_by": ["phase3-008"]
+    },
+    {
+      "id": "phase4-002",
+      "phase": 4,
+      "category": "backend",
+      "description": "Implement OpenAI Codex executor plugin",
+      "steps": [
+        "Create CodexExecutor implementing ExecutorPlugin",
+        "Implement API authentication and configuration",
+        "Map PRD tasks to Codex prompts",
+        "Handle Codex-specific response parsing",
+        "Implement retry and error handling for Codex API",
+        "Add Codex-specific configuration options"
+      ],
+      "passes": false,
+      "test_coverage": "integration",
+      "blocked_by": ["phase4-001"]
+    },
+    {
+      "id": "phase4-003",
+      "phase": 4,
+      "category": "backend",
+      "description": "Implement Google Gemini executor plugin",
+      "steps": [
+        "Create GeminiExecutor implementing ExecutorPlugin",
+        "Implement Gemini API authentication",
+        "Map PRD tasks to Gemini prompts",
+        "Handle Gemini-specific response parsing",
+        "Implement retry and error handling for Gemini API",
+        "Add Gemini-specific configuration options"
+      ],
+      "passes": false,
+      "test_coverage": "integration",
+      "blocked_by": ["phase4-001"]
+    },
+    {
+      "id": "phase4-004",
+      "phase": 4,
+      "category": "backend",
+      "description": "Implement Claude API direct executor plugin",
+      "steps": [
+        "Create ClaudeAPIExecutor for direct API calls (not CLI)",
+        "Implement tool use handling for file operations",
+        "Handle streaming responses",
+        "Implement proper context management",
+        "Add token counting and budget management",
+        "Support Claude-specific features (extended thinking, etc.)"
+      ],
+      "passes": false,
+      "test_coverage": "integration",
+      "blocked_by": ["phase4-001"]
+    },
+    {
+      "id": "phase4-005",
+      "phase": 4,
+      "category": "frontend",
+      "description": "Create executor configuration UI",
+      "steps": [
+        "Create ExecutorSettings component",
+        "Show available executor plugins with status",
+        "Add executor configuration forms",
+        "Support API key management (secure storage)",
+        "Add executor testing/validation UI",
+        "Show executor usage statistics"
+      ],
+      "passes": false,
+      "test_coverage": "manual",
+      "blocked_by": ["phase4-001"]
+    },
+    {
+      "id": "phase4-006",
+      "phase": 4,
+      "category": "backend",
+      "description": "Implement executor fallback and selection logic",
+      "steps": [
+        "Create ExecutorSelector with configurable strategy",
+        "Implement primary/fallback executor pattern",
+        "Add executor health monitoring",
+        "Support task-specific executor override",
+        "Implement cost-based executor selection option",
+        "Add executor rate limiting coordination"
+      ],
+      "passes": false,
+      "test_coverage": "unit",
+      "blocked_by": ["phase4-002", "phase4-003", "phase4-004"]
+    },
+    {
+      "id": "phase5-001",
+      "phase": 5,
+      "category": "backend",
+      "description": "Implement cost and token tracking",
+      "steps": [
+        "Create CostTracker service",
+        "Track tokens used per task/run/project",
+        "Calculate costs based on executor pricing",
+        "Store cost history in database",
+        "Add cost alerts and budgets",
+        "Create cost reporting API endpoints"
+      ],
+      "passes": false,
+      "test_coverage": "unit",
+      "blocked_by": ["phase4-006"]
+    },
+    {
+      "id": "phase5-002",
+      "phase": 5,
+      "category": "frontend",
+      "description": "Create cost tracking dashboard",
+      "steps": [
+        "Create CostDashboard component",
+        "Show cost breakdown by project/run/executor",
+        "Add cost trend charts over time",
+        "Implement budget progress indicators",
+        "Add cost comparison between runs",
+        "Create cost export functionality (CSV, JSON)"
+      ],
+      "passes": false,
+      "test_coverage": "manual",
+      "blocked_by": ["phase5-001"]
+    },
+    {
+      "id": "phase5-003",
+      "phase": 5,
+      "category": "frontend",
+      "description": "Create git branch visualization",
+      "steps": [
+        "Create BranchGraph component",
+        "Visualize run branch, base branches, feature branches",
+        "Show merge operations with direction arrows",
+        "Color code branches by status",
+        "Add interactive branch exploration",
+        "Support branch comparison view"
+      ],
+      "passes": false,
+      "test_coverage": "manual",
+      "blocked_by": ["phase3-007"]
+    },
+    {
+      "id": "phase5-004",
+      "phase": 5,
+      "category": "backend",
+      "description": "Implement acceptance criteria / quality gates",
+      "steps": [
+        "Define AcceptanceCriteria dataclass",
+        "Support built-in criteria: test, lint, typecheck",
+        "Support custom command criteria",
+        "Implement criteria checking after task completion",
+        "Add criteria result storage and reporting",
+        "Support retry on criteria failure"
+      ],
+      "passes": false,
+      "test_coverage": "unit",
+      "blocked_by": ["phase3-004"]
+    },
+    {
+      "id": "phase5-005",
+      "phase": 5,
+      "category": "frontend",
+      "description": "Create quality gates configuration UI",
+      "steps": [
+        "Create QualityGates component",
+        "Show available quality gates with enable/disable",
+        "Add per-task gate configuration",
+        "Show gate execution results in task view",
+        "Add gate failure resolution workflow",
+        "Support custom gate command editor"
+      ],
+      "passes": false,
+      "test_coverage": "manual",
+      "blocked_by": ["phase5-004"]
+    },
+    {
+      "id": "phase5-006",
+      "phase": 5,
+      "category": "backend",
+      "description": "Add foundation for team features",
+      "steps": [
+        "Create User model with basic auth",
+        "Implement session management",
+        "Add API authentication middleware",
+        "Create AuditLog for tracking actions",
+        "Implement basic role concept (admin/user)",
+        "Add user settings and preferences"
+      ],
+      "passes": false,
+      "test_coverage": "unit",
+      "blocked_by": ["phase5-001"]
+    },
+    {
+      "id": "phase5-007",
+      "phase": 5,
+      "category": "frontend",
+      "description": "Create user authentication UI",
+      "steps": [
+        "Create login page",
+        "Add session persistence",
+        "Create user settings page",
+        "Add logout functionality",
+        "Implement protected routes",
+        "Add user indicator in dashboard header"
+      ],
+      "passes": false,
+      "test_coverage": "manual",
+      "blocked_by": ["phase5-006"]
+    },
+    {
+      "id": "phase5-008",
+      "phase": 5,
+      "category": "backend",
+      "description": "Implement notification system foundation",
+      "steps": [
+        "Create NotificationService",
+        "Support in-app notifications",
+        "Add webhook notification channel",
+        "Create notification configuration per project",
+        "Define notification events (run start/complete/fail)",
+        "Store notification history"
+      ],
+      "passes": false,
+      "test_coverage": "unit",
+      "blocked_by": ["phase5-006"]
+    },
+    {
+      "id": "phase5-009",
+      "phase": 5,
+      "category": "frontend",
+      "description": "Create notifications UI",
+      "steps": [
+        "Create NotificationCenter component",
+        "Show notification bell with unread count",
+        "Add notification dropdown with recent items",
+        "Create notification settings page",
+        "Support notification filtering",
+        "Add mark all as read functionality"
+      ],
+      "passes": false,
+      "test_coverage": "manual",
+      "blocked_by": ["phase5-008"]
+    },
+    {
+      "id": "phase5-010",
+      "phase": 5,
+      "category": "docs",
+      "description": "Create comprehensive documentation",
+      "steps": [
+        "Write architecture documentation",
+        "Create API reference documentation",
+        "Write skill development guide",
+        "Create executor plugin development guide",
+        "Add deployment guide for production",
+        "Create contributing guidelines"
+      ],
+      "passes": false,
+      "test_coverage": "none",
+      "blocked_by": ["phase5-009"]
+    }
+  ]
+}
